@@ -1,0 +1,39 @@
+version: "2"
+
+linters:
+  default: standard
+  enable:
+    - bodyclose
+    - cyclop
+    - goconst
+    - gocritic
+    - gocyclo
+    - gosec
+    - misspell
+    - nakedret
+    - prealloc
+    - revive
+    - unconvert
+    - unparam
+  settings:
+    cyclop:
+      max-complexity: 15
+    gocyclo:
+      min-complexity: 15
+
+formatters:
+  enable:
+    - gofumpt
+    - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/miltonparedes/giro
+
+issues:
+  exclude-rules:
+    - path: _test\.go
+      linters:
+        - goconst
+        - gosec
+        - unparam
