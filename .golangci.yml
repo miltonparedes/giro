@@ -15,6 +15,17 @@ linters:
     - revive
     - unconvert
     - unparam
+  exclusions:
+    rules:
+      - path: _test\.go
+        linters:
+          - goconst
+          - gosec
+          - unparam
+      - path: internal/types/
+        text: "avoid meaningless package names"
+        linters:
+          - revive
   settings:
     cyclop:
       max-complexity: 15
@@ -30,10 +41,3 @@ formatters:
       local-prefixes:
         - github.com/miltonparedes/giro
 
-issues:
-  exclude-rules:
-    - path: _test\.go
-      linters:
-        - goconst
-        - gosec
-        - unparam
