@@ -1,6 +1,7 @@
 package kiro
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 )
@@ -38,6 +39,28 @@ type ErrorInfo struct {
 	Reason          string
 	UserMessage     string
 	OriginalMessage string
+}
+
+// KiroHTTPError represents an upstream Kiro API failure with its original
+// HTTP status code and message.
+type KiroHTTPError struct {
+	StatusCode int
+	Message    string
+}
+
+// Error implements the error interface.
+func (e *KiroHTTPError) Error() string {
+	return fmt.Sprintf("kiro API error (HTTP %d): %s", e.StatusCode, e.Message)
+}
+
+// StatusCodeFromError extracts an upstream HTTP status code from err when the
+// error wraps or is a *KiroHTTPError.
+func StatusCodeFromError(err error) (int, bool) {
+	var ke *KiroHTTPError
+	if !errors.As(err, &ke) {
+		return 0, false
+	}
+	return ke.StatusCode, true
 }
 
 // ClassifyNetworkError inspects an error and returns a NetworkErrorInfo with

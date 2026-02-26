@@ -25,18 +25,24 @@ type tokenProvider interface {
 // HTTPClient sends requests to the Kiro API with automatic retry,
 // exponential backoff, and transparent token refresh on 403 responses.
 type HTTPClient struct {
-	auth         tokenProvider
-	sharedClient *http.Client
-	sleepFn      func(time.Duration) // injectable for testing
+	auth                 tokenProvider
+	sharedClient         *http.Client
+	streamingReadTimeout time.Duration
+	sleepFn              func(time.Duration) // injectable for testing
 }
 
 // NewHTTPClient creates an HTTPClient that uses authManager for
 // authentication and sharedClient for non-streaming HTTP requests.
-func NewHTTPClient(authManager *auth.KiroAuthManager, sharedClient *http.Client) *HTTPClient {
+func NewHTTPClient(
+	authManager *auth.KiroAuthManager,
+	sharedClient *http.Client,
+	streamingReadTimeout time.Duration,
+) *HTTPClient {
 	return &HTTPClient{
-		auth:         authManager,
-		sharedClient: sharedClient,
-		sleepFn:      time.Sleep,
+		auth:                 authManager,
+		sharedClient:         sharedClient,
+		streamingReadTimeout: streamingReadTimeout,
+		sleepFn:              time.Sleep,
 	}
 }
 
@@ -67,10 +73,17 @@ func (c *HTTPClient) RequestWithRetry(
 			continue
 		}
 
-		done, ret := c.handleResponse(ctx, resp, attempt, maxRetries)
+		done, ret, respErr := c.handleResponse(ctx, resp, attempt, maxRetries)
 		if done {
 			return ret, nil
 		}
+		if respErr != nil {
+			lastErr = respErr
+		}
+	}
+
+	if lastErr == nil {
+		lastErr = fmt.Errorf("unknown error")
 	}
 
 	return nil, fmt.Errorf("kiro: all %d attempts exhausted: %w", maxRetries, lastErr)
@@ -116,13 +129,23 @@ func (c *HTTPClient) doRequest(
 	return client.Do(req) //nolint:bodyclose,gosec // caller closes body; URL from trusted config
 }
 
-// pickClient returns a per-request client with keep-alives disabled for
-// streaming, or the shared client for normal requests.
+// pickClient returns a per-request client with keep-alives disabled and a
+// timeout for streaming, or the shared client for normal requests.
 func (c *HTTPClient) pickClient(streaming bool) *http.Client {
 	if !streaming {
 		return c.sharedClient
 	}
+
+	timeout := c.streamingReadTimeout
+	if timeout <= 0 && c.sharedClient != nil {
+		timeout = c.sharedClient.Timeout
+	}
+	if timeout <= 0 {
+		timeout = 300 * time.Second
+	}
+
 	return &http.Client{
+		Timeout: timeout,
 		Transport: &http.Transport{
 			DisableKeepAlives: true,
 		},
@@ -130,16 +153,17 @@ func (c *HTTPClient) pickClient(streaming bool) *http.Client {
 }
 
 // handleResponse decides what to do after receiving an HTTP response. It
-// returns (true, resp) when the caller should use the response, or
-// (false, nil) when the loop should continue retrying.
+// returns (true, resp, nil) when the caller should use the response, or
+// (false, nil, err) when the loop should continue retrying with a tracked
+// failure cause.
 func (c *HTTPClient) handleResponse(
 	ctx context.Context,
 	resp *http.Response,
 	attempt, maxRetries int,
-) (done bool, ret *http.Response) {
+) (done bool, ret *http.Response, retErr error) {
 	switch {
 	case resp.StatusCode == http.StatusOK:
-		return true, resp
+		return true, resp, nil
 
 	case resp.StatusCode == http.StatusForbidden:
 		_ = resp.Body.Close()
@@ -147,21 +171,21 @@ func (c *HTTPClient) handleResponse(
 		if _, refreshErr := c.auth.ForceRefresh(ctx); refreshErr != nil {
 			slog.Error("kiro: force refresh failed", "error", refreshErr)
 		}
-		return false, nil
+		return false, nil, fmt.Errorf("kiro: retryable upstream status %d", resp.StatusCode)
 
 	case resp.StatusCode == http.StatusTooManyRequests:
 		_ = resp.Body.Close()
 		c.backoff(attempt, maxRetries, resp.StatusCode)
-		return false, nil
+		return false, nil, fmt.Errorf("kiro: retryable upstream status %d", resp.StatusCode)
 
 	case resp.StatusCode >= 500 && resp.StatusCode < 600:
 		_ = resp.Body.Close()
 		c.backoff(attempt, maxRetries, resp.StatusCode)
-		return false, nil
+		return false, nil, fmt.Errorf("kiro: retryable upstream status %d", resp.StatusCode)
 
 	default:
 		// Non-retryable status (e.g. 400, 422): let the caller handle it.
-		return true, resp
+		return true, resp, nil
 	}
 }
 

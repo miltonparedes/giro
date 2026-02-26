@@ -78,7 +78,7 @@ func (h *AnthropicHandler) Messages(w http.ResponseWriter, r *http.Request) {
 
 	events, body, err := h.doKiroRequest(r.Context(), payloadResult.Payload)
 	if err != nil {
-		writeJSONError(w, http.StatusBadGateway, kiro.FormatErrorForAnthropic(err.Error()))
+		writeJSONError(w, kiroErrorStatus(err), kiro.FormatErrorForAnthropic(err.Error()))
 		return
 	}
 	defer func() { _ = body.Close() }()
@@ -137,7 +137,11 @@ func (h *AnthropicHandler) doKiroRequest(ctx context.Context, payload map[string
 	}
 
 	url := h.authManager.APIHost() + "/generateAssistantResponse"
-	client := kiro.NewHTTPClient(h.authManager, h.sharedClient)
+	client := kiro.NewHTTPClient(
+		h.authManager,
+		h.sharedClient,
+		time.Duration(h.cfg.StreamingReadTimeout*float64(time.Second)),
+	)
 
 	maxRetries := h.cfg.FirstTokenMaxRetries
 	if maxRetries < 1 {
@@ -199,8 +203,14 @@ func (h *AnthropicHandler) handleKiroErrorResponse(resp *http.Response) error {
 	var errorJSON map[string]any
 	if err := json.Unmarshal(body, &errorJSON); err == nil {
 		enhanced := kiro.EnhanceKiroError(errorJSON)
-		return fmt.Errorf("kiro API error (HTTP %d): %s", resp.StatusCode, enhanced.UserMessage)
+		return &kiro.KiroHTTPError{
+			StatusCode: resp.StatusCode,
+			Message:    enhanced.UserMessage,
+		}
 	}
 
-	return fmt.Errorf("kiro API error (HTTP %d): %s", resp.StatusCode, string(body))
+	return &kiro.KiroHTTPError{
+		StatusCode: resp.StatusCode,
+		Message:    string(body),
+	}
 }

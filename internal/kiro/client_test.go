@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -46,9 +47,10 @@ func (m *mockAuth) Fingerprint() string {
 // sleep function so tests run instantly.
 func newTestClient(ma *mockAuth) *HTTPClient {
 	return &HTTPClient{
-		auth:         ma,
-		sharedClient: &http.Client{Timeout: 5 * time.Second},
-		sleepFn:      func(time.Duration) {}, // no-op for fast tests
+		auth:                 ma,
+		sharedClient:         &http.Client{Timeout: 5 * time.Second},
+		streamingReadTimeout: 5 * time.Second,
+		sleepFn:              func(time.Duration) {}, // no-op for fast tests
 	}
 }
 
@@ -256,6 +258,12 @@ func TestRequestWithRetry_AllAttemptsExhausted(t *testing.T) {
 	if resp != nil {
 		t.Error("expected nil response when all attempts exhausted")
 	}
+	if strings.Contains(err.Error(), "%!w(<nil>)") {
+		t.Fatalf("error should include concrete cause, got: %v", err)
+	}
+	if !strings.Contains(err.Error(), "retryable upstream status 500") {
+		t.Fatalf("error should include final upstream status cause, got: %v", err)
+	}
 }
 
 func TestRequestWithRetry_GetAccessTokenError(t *testing.T) {
@@ -295,6 +303,20 @@ func TestRequestWithRetry_StreamingUsesCloseHeader(t *testing.T) {
 
 	if receivedConnection != "close" {
 		t.Errorf("Connection header = %q, want %q", receivedConnection, "close")
+	}
+}
+
+func TestPickClient_StreamingUsesConfiguredTimeout(t *testing.T) {
+	c := &HTTPClient{
+		auth:                 &mockAuth{token: "tok", fingerprint: "fp"},
+		sharedClient:         &http.Client{Timeout: 10 * time.Second},
+		streamingReadTimeout: 123 * time.Second,
+		sleepFn:              func(time.Duration) {},
+	}
+
+	client := c.pickClient(true)
+	if client.Timeout != 123*time.Second {
+		t.Fatalf("streaming client timeout = %v, want %v", client.Timeout, 123*time.Second)
 	}
 }
 

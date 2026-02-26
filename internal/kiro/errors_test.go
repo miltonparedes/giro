@@ -2,6 +2,7 @@ package kiro_test
 
 import (
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/miltonparedes/giro/internal/kiro"
@@ -192,6 +193,46 @@ func TestFormatErrorForAnthropic(t *testing.T) {
 	}
 	if errObj["message"] != "test error" {
 		t.Errorf("error.message = %q, want %q", errObj["message"], "test error")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// KiroHTTPError helpers
+// ---------------------------------------------------------------------------
+
+func TestStatusCodeFromError_Direct(t *testing.T) {
+	status, ok := kiro.StatusCodeFromError(&kiro.KiroHTTPError{
+		StatusCode: 401,
+		Message:    "unauthorized",
+	})
+
+	if !ok {
+		t.Fatal("expected status to be found")
+	}
+	if status != 401 {
+		t.Fatalf("status = %d, want 401", status)
+	}
+}
+
+func TestStatusCodeFromError_Wrapped(t *testing.T) {
+	err := fmt.Errorf("wrapped: %w", &kiro.KiroHTTPError{
+		StatusCode: 429,
+		Message:    "rate limit",
+	})
+
+	status, ok := kiro.StatusCodeFromError(err)
+	if !ok {
+		t.Fatal("expected status to be found")
+	}
+	if status != 429 {
+		t.Fatalf("status = %d, want 429", status)
+	}
+}
+
+func TestStatusCodeFromError_Unknown(t *testing.T) {
+	_, ok := kiro.StatusCodeFromError(errors.New("plain error"))
+	if ok {
+		t.Fatal("expected status lookup to fail")
 	}
 }
 
