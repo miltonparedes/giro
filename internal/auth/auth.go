@@ -67,12 +67,14 @@ func (a AuthType) String() string {
 
 // Options configures a KiroAuthManager.
 type Options struct {
-	RefreshToken string //nolint:gosec // not a hardcoded credential
-	ProfileARN   string
-	Region       string
-	CredsFile    string
-	SQLiteDB     string
-	VPNProxyURL  string
+	RefreshToken    string //nolint:gosec // not a hardcoded credential
+	ProfileARN      string
+	Region          string
+	CredsFile       string
+	SQLiteDB        string
+	VPNProxyURL     string
+	APIHostOverride string
+	QHostOverride   string
 }
 
 // KiroAuthManager manages the token lifecycle for the Kiro API.
@@ -126,6 +128,12 @@ func NewKiroAuthManager(opts Options) (*KiroAuthManager, error) {
 	}
 
 	m.detectAuthType()
+	if opts.APIHostOverride != "" {
+		m.apiHost = opts.APIHostOverride
+	}
+	if opts.QHostOverride != "" {
+		m.qHost = opts.QHostOverride
+	}
 
 	slog.Info("auth manager initialized",
 		"type", m.authType.String(),

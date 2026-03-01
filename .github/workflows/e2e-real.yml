@@ -1,0 +1,31 @@
+name: E2E Real
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 5 * * *'
+
+jobs:
+  e2e-real:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Run real e2e smoke tests
+        env:
+          GIRO_E2E_REAL_REFRESH_TOKEN: ${{ secrets.GIRO_E2E_REAL_REFRESH_TOKEN }}
+          GIRO_E2E_REAL_CREDS_FILE: ${{ secrets.GIRO_E2E_REAL_CREDS_FILE }}
+          GIRO_E2E_REAL_SQLITE_DB: ${{ secrets.GIRO_E2E_REAL_SQLITE_DB }}
+          GIRO_E2E_REAL_PROFILE_ARN: ${{ secrets.GIRO_E2E_REAL_PROFILE_ARN }}
+          GIRO_E2E_REAL_REGION: ${{ vars.GIRO_E2E_REAL_REGION }}
+          GIRO_E2E_REAL_MODEL: ${{ vars.GIRO_E2E_REAL_MODEL }}
+          GIRO_E2E_REAL_PROXY_API_KEY: ${{ secrets.GIRO_E2E_REAL_PROXY_API_KEY }}
+          GIRO_E2E_REAL_VPN_PROXY_URL: ${{ secrets.GIRO_E2E_REAL_VPN_PROXY_URL }}
+        run: go test -v -count=1 -tags=e2e_real ./test/e2e/...
