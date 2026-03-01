@@ -197,11 +197,11 @@ func TestFormatErrorForAnthropic(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// KiroHTTPError helpers
+// HTTPError helpers
 // ---------------------------------------------------------------------------
 
 func TestStatusCodeFromError_Direct(t *testing.T) {
-	status, ok := kiro.StatusCodeFromError(&kiro.KiroHTTPError{
+	status, ok := kiro.StatusCodeFromError(&kiro.HTTPError{
 		StatusCode: 401,
 		Message:    "unauthorized",
 	})
@@ -215,7 +215,7 @@ func TestStatusCodeFromError_Direct(t *testing.T) {
 }
 
 func TestStatusCodeFromError_Wrapped(t *testing.T) {
-	err := fmt.Errorf("wrapped: %w", &kiro.KiroHTTPError{
+	err := fmt.Errorf("wrapped: %w", &kiro.HTTPError{
 		StatusCode: 429,
 		Message:    "rate limit",
 	})

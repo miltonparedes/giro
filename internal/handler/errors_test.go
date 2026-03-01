@@ -10,7 +10,7 @@ import (
 )
 
 func TestKiroErrorStatus_UsesUpstreamStatus(t *testing.T) {
-	err := &kiro.KiroHTTPError{StatusCode: http.StatusUnauthorized, Message: "bad token"}
+	err := &kiro.HTTPError{StatusCode: http.StatusUnauthorized, Message: "bad token"}
 
 	got := kiroErrorStatus(err)
 
@@ -20,7 +20,7 @@ func TestKiroErrorStatus_UsesUpstreamStatus(t *testing.T) {
 }
 
 func TestKiroErrorStatus_UsesWrappedUpstreamStatus(t *testing.T) {
-	err := fmt.Errorf("wrapped: %w", &kiro.KiroHTTPError{
+	err := fmt.Errorf("wrapped: %w", &kiro.HTTPError{
 		StatusCode: http.StatusBadRequest,
 		Message:    "bad payload",
 	})
@@ -41,7 +41,7 @@ func TestKiroErrorStatus_FallbacksToBadGateway(t *testing.T) {
 }
 
 func TestKiroErrorStatus_InvalidStatusFallback(t *testing.T) {
-	got := kiroErrorStatus(&kiro.KiroHTTPError{StatusCode: 0, Message: "invalid"})
+	got := kiroErrorStatus(&kiro.HTTPError{StatusCode: 0, Message: "invalid"})
 
 	if got != http.StatusBadGateway {
 		t.Fatalf("kiroErrorStatus = %d, want %d", got, http.StatusBadGateway)

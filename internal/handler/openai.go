@@ -98,13 +98,12 @@ func (h *OpenAIHandler) ChatCompletions(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	events, body, err := h.doKiroRequest(r.Context(), payloadResult.Payload)
+	events, err := h.doKiroRequest(r.Context(), payloadResult.Payload)
 	if err != nil {
 		status := kiroErrorStatus(err)
 		writeJSONError(w, status, kiro.FormatErrorForOpenAI(err.Error(), status))
 		return
 	}
-	defer func() { _ = body.Close() }()
 
 	openAICfg := stream.OpenAIStreamConfig{
 		Model:            resolution.ResolvedModel,
@@ -149,9 +148,9 @@ func (h *OpenAIHandler) collectOpenAIResponse(w http.ResponseWriter, events <-ch
 }
 
 // doKiroRequest sends a request to the Kiro API with first-token retry logic.
-// On success it returns the event channel, the response body (for deferred close),
-// and nil error. The caller must close the body when done.
-func (h *OpenAIHandler) doKiroRequest(ctx context.Context, payload map[string]any) (<-chan stream.KiroEvent, io.Closer, error) {
+// On success it returns the event channel and nil error. The response body is
+// owned by ParseKiroStream, which closes it when the stream is fully consumed.
+func (h *OpenAIHandler) doKiroRequest(ctx context.Context, payload map[string]any) (<-chan stream.KiroEvent, error) {
 	streamCfg := stream.Config{
 		FakeReasoning:         h.cfg.FakeReasoning,
 		FakeReasoningHandling: stream.ThinkingHandling(h.cfg.FakeReasoningHandling),
@@ -172,14 +171,14 @@ func (h *OpenAIHandler) doKiroRequest(ctx context.Context, payload map[string]an
 	}
 
 	for attempt := range maxRetries {
-		resp, err := client.RequestWithRetry(ctx, url, payload, true)
+		resp, err := client.RequestWithRetry(ctx, url, payload, true) //nolint:bodyclose // body is closed by ParseKiroStream
 		if err != nil {
-			return nil, nil, fmt.Errorf("kiro request failed: %w", err)
+			return nil, fmt.Errorf("kiro request failed: %w", err)
 		}
 
 		// Non-200: read error body and return formatted error.
 		if resp.StatusCode != http.StatusOK {
-			return nil, nil, h.handleKiroErrorResponse(resp)
+			return nil, h.handleKiroErrorResponse(resp)
 		}
 
 		events := stream.ParseKiroStream(ctx, resp.Body, streamCfg)
@@ -197,7 +196,7 @@ func (h *OpenAIHandler) doKiroRequest(ctx context.Context, payload map[string]an
 				slog.Warn("first token timeout, retrying", "attempt", attempt+1)
 				continue
 			}
-			return nil, nil, firstEvent.Error
+			return nil, firstEvent.Error
 		}
 
 		// Re-emit the first event through a new channel.
@@ -210,10 +209,10 @@ func (h *OpenAIHandler) doKiroRequest(ctx context.Context, payload map[string]an
 			}
 		}()
 
-		return reEmit, resp.Body, nil
+		return reEmit, nil
 	}
 
-	return nil, nil, fmt.Errorf("all %d first-token retry attempts failed", maxRetries)
+	return nil, fmt.Errorf("all %d first-token retry attempts failed", maxRetries)
 }
 
 // handleKiroErrorResponse reads a non-200 Kiro response and returns a
@@ -226,13 +225,13 @@ func (h *OpenAIHandler) handleKiroErrorResponse(resp *http.Response) error {
 	var errorJSON map[string]any
 	if err := json.Unmarshal(body, &errorJSON); err == nil {
 		enhanced := kiro.EnhanceKiroError(errorJSON)
-		return &kiro.KiroHTTPError{
+		return &kiro.HTTPError{
 			StatusCode: resp.StatusCode,
 			Message:    enhanced.UserMessage,
 		}
 	}
 
-	return &kiro.KiroHTTPError{
+	return &kiro.HTTPError{
 		StatusCode: resp.StatusCode,
 		Message:    string(body),
 	}

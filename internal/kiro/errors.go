@@ -41,22 +41,22 @@ type ErrorInfo struct {
 	OriginalMessage string
 }
 
-// KiroHTTPError represents an upstream Kiro API failure with its original
+// HTTPError represents an upstream Kiro API failure with its original
 // HTTP status code and message.
-type KiroHTTPError struct {
+type HTTPError struct {
 	StatusCode int
 	Message    string
 }
 
 // Error implements the error interface.
-func (e *KiroHTTPError) Error() string {
+func (e *HTTPError) Error() string {
 	return fmt.Sprintf("kiro API error (HTTP %d): %s", e.StatusCode, e.Message)
 }
 
 // StatusCodeFromError extracts an upstream HTTP status code from err when the
-// error wraps or is a *KiroHTTPError.
+// error wraps or is a *HTTPError.
 func StatusCodeFromError(err error) (int, bool) {
-	var ke *KiroHTTPError
+	var ke *HTTPError
 	if !errors.As(err, &ke) {
 		return 0, false
 	}
