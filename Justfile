@@ -6,6 +6,14 @@ default:
 dev:
     go run ./cmd/giro
 
+# Run with kiro-cli credentials (Linux)
+run-linux:
+    KIRO_CLI_DB_FILE="~/.local/share/kiro-cli/data.sqlite3" go run ./cmd/giro
+
+# Run with kiro-cli credentials (macOS)
+run-macos:
+    KIRO_CLI_DB_FILE="~/Library/Application Support/kiro-cli/data.sqlite3" go run ./cmd/giro
+
 # Build the binary
 build:
     go build -o bin/giro ./cmd/giro
