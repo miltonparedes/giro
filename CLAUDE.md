@@ -26,9 +26,13 @@ Run a single test: `go test -race -run TestName ./internal/pkg/...`
 
 ```
 cmd/giro/main.go           → entry point, slog setup, graceful shutdown (SIGINT/SIGTERM, 10s timeout)
-internal/config/config.go  → env var config: HOST, PORT, LOG_LEVEL, API_KEY
+internal/config/config.go  → env var config: HOST, PORT, LOG_LEVEL, credentials, proxy, timeouts
+internal/auth/auth.go      → Kiro token lifecycle (Kiro Desktop + AWS SSO OIDC), SQLite/file cred sources
+internal/middleware/        → CORS, OpenAI/Anthropic API key validation (PROXY_API_KEY)
 internal/server/server.go  → chi router + middleware (RequestID, RealIP, Logger, Recoverer)
-internal/handler/           → HTTP handlers (currently just health.go)
+internal/handler/           → HTTP handlers (health, OpenAI chat completions, Anthropic messages)
+internal/kiro/              → Kiro API client, headers, request/response mapping
+internal/model/             → model cache, resolver, name normalization
 ```
 
 - **Router**: chi v5 — only external dependency. Standard `net/http` compatible.

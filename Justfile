@@ -19,6 +19,14 @@ cover:
     go test -race -count=1 -coverprofile=coverage.out ./...
     go tool cover -html=coverage.out -o coverage.html
 
+# Run mock end-to-end tests
+e2e-mock:
+    go test -count=1 -tags=e2e_mock ./test/e2e/...
+
+# Run real end-to-end smoke tests (requires credentials env vars)
+e2e-real:
+    go test -count=1 -tags=e2e_real ./test/e2e/...
+
 # Format code with gofumpt
 fmt:
     gofumpt -w .
