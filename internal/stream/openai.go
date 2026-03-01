@@ -214,7 +214,6 @@ func collectOpenAIEvents(events <-chan KiroEvent) openAICollected {
 			c.fullContentForBracket += evt.Content
 		case EventThinking:
 			c.reasoningContent += evt.ThinkingContent
-			c.fullContentForBracket += evt.ThinkingContent
 		case EventToolUse:
 			if evt.ToolUse != nil {
 				c.toolCalls = append(c.toolCalls, types.ToolCall{

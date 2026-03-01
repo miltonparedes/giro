@@ -275,7 +275,6 @@ func collectAnthropicEvents(events <-chan KiroEvent) anthropicCollected {
 			c.fullContentForBracket += evt.Content
 		case EventThinking:
 			c.thinkingContent += evt.ThinkingContent
-			c.fullContentForBracket += evt.ThinkingContent
 		case EventToolUse:
 			c.toolCalls = append(c.toolCalls, evt)
 		case EventError:
