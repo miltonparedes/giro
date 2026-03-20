@@ -20,7 +20,7 @@ run-macos:
 
 # Build the binary
 build:
-    go build -o bin/giro ./cmd/giro
+    go build -ldflags="-s -w -X github.com/miltonparedes/giro/internal/config.AppVersion=dev" -o bin/giro ./cmd/giro
 
 # Run tests with race detection
 test:

@@ -19,6 +19,25 @@ giro is a lightweight API gateway that translates **OpenAI** and **Anthropic** A
          Kiro API (AWS)
 ```
 
+## Install
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/miltonparedes/giro/main/install.sh | sh
+```
+
+Detects OS and architecture automatically (Linux & macOS, amd64 & arm64). To install elsewhere:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/miltonparedes/giro/main/install.sh | INSTALL_DIR=~/.local/bin sh
+```
+
+**From source:**
+```sh
+go install github.com/miltonparedes/giro/cmd/giro@latest
+```
+
+Or grab a binary from the [releases page](https://github.com/miltonparedes/giro/releases).
+
 ## Quick start
 
 ```sh

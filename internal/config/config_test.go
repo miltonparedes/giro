@@ -366,8 +366,8 @@ func TestConstants(t *testing.T) {
 	if MaxToolNameLength != 64 {
 		t.Errorf("MaxToolNameLength = %d, want 64", MaxToolNameLength)
 	}
-	if AppVersion != "1.0" {
-		t.Errorf("AppVersion = %q, want %q", AppVersion, "1.0")
+	if AppVersion != "dev" {
+		t.Errorf("AppVersion = %q, want %q", AppVersion, "dev")
 	}
 }
 

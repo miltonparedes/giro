@@ -30,9 +30,11 @@ const (
 	DefaultMaxInputTokens = 200_000
 	// MaxToolNameLength is the maximum allowed tool name length.
 	MaxToolNameLength = 64
-	// AppVersion is the Go port version string.
-	AppVersion = "1.0"
 )
+
+// AppVersion is the application version string, injected at build time via
+// ldflags: -X github.com/miltonparedes/giro/internal/config.AppVersion=...
+var AppVersion = "dev"
 
 // Connection pool settings for http.Transport.
 const (
