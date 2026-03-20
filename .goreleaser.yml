@@ -16,9 +16,13 @@ builds:
       - -s -w -X github.com/miltonparedes/giro/internal/config.AppVersion={{.Version}}
 
 archives:
-  - format_overrides:
+  - id: default
+    formats:
+      - tar.gz
+    format_overrides:
       - goos: windows
-        format: zip
+        formats:
+          - zip
 
 changelog:
   sort: asc
