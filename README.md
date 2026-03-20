@@ -1,179 +1,191 @@
 # giro
 
-Lightweight API gateway that translates OpenAI and Anthropic API formats to the Kiro API (AWS CodeWhisperer / Amazon Q Developer), letting you use Claude models from Kiro with any compatible client — IDEs like Cursor and Cline, SDKs, frameworks like LangChain, or any tool that speaks the OpenAI or Anthropic protocol.
+Use Claude via Kiro — from any tool you already love.
 
-## How it works
+giro is a lightweight API gateway that translates **OpenAI** and **Anthropic** API formats to the [Kiro](https://kiro.dev) API (AWS CodeWhisperer / Amazon Q Developer). Point your favorite AI coding tool at `localhost:8080` and go.
 
 ```
-Client (Cursor, Cline, SDK, etc.)
-  │
-  │  OpenAI or Anthropic API format
-  ▼
-┌──────────┐
-│   giro   │  ← translates request format
-└──────────┘
-  │
-  │  Kiro API format (authenticated with your Kiro credentials)
-  ▼
-Kiro API (AWS)
-```
-
-giro handles two separate authentication concerns:
-
-1. **Upstream auth** — giro authenticates with the Kiro API using your Kiro credentials (refresh token, credentials file, or CLI database).
-2. **Client auth** (optional) — clients authenticate with giro using a proxy API key you define.
-
-## Authentication setup
-
-You need an active Kiro session to provide credentials. giro supports three credential sources (you need at least one):
-
-### Option A: Kiro CLI database (recommended)
-
-If you have the [Kiro IDE](https://kiro.dev) or `kiro-cli` installed, giro can read tokens directly from its SQLite database. This is the easiest method because Kiro manages the tokens for you.
-
-```sh
-# Find the database — typically at one of these paths:
-# Linux:         ~/.local/share/kiro-cli/data.sqlite3
-# macOS (ARM):   ~/Library/Application Support/kiro-cli/data.sqlite3
-# macOS (Intel): ~/Library/Application Support/kiro-cli/data.sqlite3
-
-# Linux
-export KIRO_CLI_DB_FILE="~/.local/share/kiro-cli/data.sqlite3"
-# macOS (both ARM and Intel)
-export KIRO_CLI_DB_FILE="~/Library/Application Support/kiro-cli/data.sqlite3"
-
-just dev
-```
-
-giro reads the `auth_kv` table looking for token keys (`kirocli:social:token`, `kirocli:odic:token`, or `codewhisperer:odic:token`). It also loads device registration data for AWS SSO OIDC refresh.
-
-**Auth type detected automatically:**
-- If the database contains `clientId` + `clientSecret` in a device registration key → **AWS SSO OIDC** flow.
-- Otherwise → **Kiro Desktop** flow (uses the Kiro auth refresh endpoint).
-
-### Option B: Credentials JSON file
-
-Point giro at a JSON file containing your tokens:
-
-```sh
-export KIRO_CREDS_FILE="~/.config/giro/credentials.json"
-just dev
-```
-
-The file format:
-
-```json
-{
-  "refreshToken": "your-refresh-token",
-  "accessToken": "your-access-token",
-  "profileArn": "arn:aws:codewhisperer:us-east-1:...",
-  "region": "us-east-1",
-  "expiresAt": "2025-01-01T00:00:00Z"
-}
-```
-
-For enterprise/SSO setups, include `clientId`, `clientSecret`, or `clientIdHash` (giro will look up the device registration from `~/.aws/sso/cache/<hash>.json`).
-
-giro writes updated tokens back to this file after each refresh.
-
-### Option C: Direct refresh token
-
-Pass a refresh token directly via environment variable:
-
-```sh
-export REFRESH_TOKEN="your-kiro-refresh-token"
-export PROFILE_ARN="arn:aws:codewhisperer:us-east-1:..."  # optional
-just dev
-```
-
-This uses the **Kiro Desktop** auth flow. The token refreshes automatically but isn't persisted anywhere — if giro restarts, you need to provide a fresh token.
-
-### How to get a refresh token
-
-1. Log in to [Kiro IDE](https://kiro.dev) or run `kiro-cli login`.
-2. After login, the refresh token is stored in Kiro's auth database (Option A) or you can extract it from the IDE's developer tools / local storage.
-
-### Token lifecycle
-
-- Tokens are refreshed automatically **10 minutes before expiry**.
-- On a 403 from Kiro, giro force-refreshes the token and retries.
-- When using the SQLite source, giro re-reads the database if a refresh fails (in case Kiro IDE refreshed the token independently).
-- Refreshed tokens are saved back to the source (SQLite or JSON file).
-
-## Client authentication (optional)
-
-By default, giro accepts all requests without authentication. To require clients to authenticate:
-
-```sh
-export PROXY_API_KEY="my-secret-key"
-just dev
-```
-
-Clients then pass this key in their requests:
-
-```sh
-# OpenAI-compatible endpoints — Bearer token
-curl http://localhost:8080/v1/chat/completions \
-  -H "Authorization: Bearer my-secret-key" \
-  -H "Content-Type: application/json" \
-  -d '{"model": "claude-sonnet-4", "messages": [{"role": "user", "content": "Hello"}]}'
-
-# Anthropic-compatible endpoint — x-api-key header or Bearer token
-curl http://localhost:8080/v1/messages \
-  -H "x-api-key: my-secret-key" \
-  -H "Content-Type: application/json" \
-  -d '{"model": "claude-sonnet-4", "max_tokens": 1024, "messages": [{"role": "user", "content": "Hello"}]}'
-
-# Opus 4.6 (OpenAI-compatible, streaming)
-curl http://localhost:8080/v1/chat/completions \
-  -H "Authorization: Bearer my-secret-key" \
-  -H "Content-Type: application/json" \
-  -d '{"model": "claude-opus-4-6", "stream": true, "messages": [{"role": "user", "content": "Hello"}]}'
+┌─────────────────────────────────┐
+│  Claude Code · OpenCode · Droid │
+│  Cursor · aider · any client    │
+└───────────────┬─────────────────┘
+                │  OpenAI or Anthropic format
+                ▼
+          ┌──────────┐
+          │   giro   │  translates + authenticates
+          └────┬─────┘
+               │  Kiro API format
+               ▼
+         Kiro API (AWS)
 ```
 
 ## Quick start
 
 ```sh
-# 1. Set credentials (pick one)
-# Linux:
-export KIRO_CLI_DB_FILE="~/.local/share/kiro-cli/data.sqlite3"
-# macOS:
-export KIRO_CLI_DB_FILE="~/Library/Application Support/kiro-cli/data.sqlite3"
+# 1 — Set credentials (pick one method)
+export KIRO_CLI_DB_FILE="~/Library/Application Support/kiro-cli/data.sqlite3"  # macOS
+export KIRO_CLI_DB_FILE="~/.local/share/kiro-cli/data.sqlite3"                 # Linux
 # or: export KIRO_CREDS_FILE="path/to/credentials.json"
 # or: export REFRESH_TOKEN="your-token"
 
-# 2. Start the server
-just dev
+# 2 — Start it
+just dev          # or: go run ./cmd/giro
 
-# 3. Verify
+# 3 — Check it's alive
 curl localhost:8080/health
 ```
 
-### Use with Cursor
+That's it. Now point your tools at `http://localhost:8080`.
 
-Set the API base URL to `http://localhost:8080/v1` and use any model name listed by `/v1/models`. If you set `PROXY_API_KEY`, enter that as the API key in Cursor.
+## Use with your tools
 
-### Use with Cline
+### Claude Code
 
-Configure the Anthropic API provider with base URL `http://localhost:8080` and use the `/v1/messages` endpoint. If you set `PROXY_API_KEY`, enter that as the API key.
+```sh
+export ANTHROPIC_BASE_URL="http://localhost:8080"
+export ANTHROPIC_API_KEY="your-proxy-api-key"  # must match PROXY_API_KEY if set
+
+# If giro rejects anthropic-beta headers:
+export CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS=1
+
+claude
+```
+
+Or make it permanent in `~/.claude/settings.json`:
+
+```json
+{
+  "env": {
+    "ANTHROPIC_BASE_URL": "http://localhost:8080",
+    "ANTHROPIC_API_KEY": "your-proxy-api-key"
+  }
+}
+```
+
+### OpenCode
+
+Drop an `opencode.json` in your project root (or `~/.config/opencode/opencode.json` for global):
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "provider": {
+    "giro": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "Giro (Kiro Proxy)",
+      "options": {
+        "baseURL": "http://localhost:8080/v1",
+        "apiKey": "{env:PROXY_API_KEY}"
+      },
+      "models": {
+        "claude-sonnet-4": {
+          "name": "Claude Sonnet 4",
+          "limit": { "context": 200000, "output": 65536 }
+        },
+        "claude-opus-4-6": {
+          "name": "Claude Opus 4.6",
+          "limit": { "context": 200000, "output": 32768 }
+        }
+      }
+    }
+  },
+  "model": "giro/claude-sonnet-4"
+}
+```
+
+### Droid (Factory)
+
+Add a custom model in `~/.factory/settings.json`:
+
+```json
+{
+  "customModels": [
+    {
+      "model": "claude-sonnet-4",
+      "displayName": "Giro — Sonnet 4",
+      "baseUrl": "http://localhost:8080/v1",
+      "apiKey": "${PROXY_API_KEY}",
+      "provider": "anthropic"
+    },
+    {
+      "model": "claude-opus-4-6",
+      "displayName": "Giro — Opus 4.6",
+      "baseUrl": "http://localhost:8080/v1",
+      "apiKey": "${PROXY_API_KEY}",
+      "provider": "anthropic"
+    }
+  ]
+}
+```
+
+Then select it in Droid with `/model` or pass `--model "custom:Giro-0"` in headless mode.
+
+### Cursor
+
+Set the API base URL to `http://localhost:8080/v1` and pick any model from `/v1/models`. If you set `PROXY_API_KEY`, enter that as the API key.
+
+### Any OpenAI-compatible client
+
+```sh
+curl http://localhost:8080/v1/chat/completions \
+  -H "Authorization: Bearer your-proxy-api-key" \
+  -H "Content-Type: application/json" \
+  -d '{"model": "claude-sonnet-4", "messages": [{"role": "user", "content": "Hello!"}]}'
+```
+
+### Any Anthropic-compatible client
+
+```sh
+curl http://localhost:8080/v1/messages \
+  -H "x-api-key: your-proxy-api-key" \
+  -H "Content-Type: application/json" \
+  -d '{"model": "claude-sonnet-4", "max_tokens": 1024, "messages": [{"role": "user", "content": "Hello!"}]}'
+```
 
 ## Endpoints
 
-| Method | Path | Description |
+| Method | Path | What it does |
 |---|---|---|
 | `GET` | `/health` | Health check |
-| `GET` | `/v1/models` | List available models (OpenAI compatible) |
-| `POST` | `/v1/chat/completions` | Chat completions (OpenAI compatible) |
-| `POST` | `/v1/messages` | Messages (Anthropic compatible) |
+| `GET` | `/v1/models` | List available models (OpenAI format) |
+| `POST` | `/v1/chat/completions` | Chat completions (OpenAI format) |
+| `POST` | `/v1/messages` | Messages (Anthropic format) |
 
 ## Features
 
-- OpenAI and Anthropic API compatibility simultaneously
-- Streaming (SSE) support
-- Tool calling / function calling
-- Vision support
-- Automatic token refresh and retry logic
-- Model name normalization
+- Speaks **both** OpenAI and Anthropic protocols simultaneously
+- Streaming (SSE), tool calling, and vision support
+- Automatic token refresh — you authenticate once, giro keeps it alive
+- Model name normalization — use friendly names like `claude-sonnet-4`
+
+## Authentication
+
+giro handles two auth layers:
+
+1. **Upstream** — giro talks to Kiro using your credentials (refresh token, credentials file, or CLI database)
+2. **Client** (optional) — your tools talk to giro using a `PROXY_API_KEY` you define
+
+### Kiro credentials
+
+You need an active [Kiro](https://kiro.dev) session. Pick one:
+
+| Method | How |
+|---|---|
+| **Kiro CLI database** (easiest) | Set `KIRO_CLI_DB_FILE` to your Kiro SQLite DB path. Tokens refresh automatically. |
+| **Credentials file** | Set `KIRO_CREDS_FILE` to a JSON file with `refreshToken`, `accessToken`, `profileArn`, etc. |
+| **Direct token** | Set `REFRESH_TOKEN` (and optionally `PROFILE_ARN`). Quick but not persisted across restarts. |
+
+Auth type is detected automatically — if the DB has `clientId` + `clientSecret`, it uses AWS SSO OIDC; otherwise it uses the Kiro Desktop flow.
+
+### Client auth
+
+Off by default. To require it:
+
+```sh
+export PROXY_API_KEY="my-secret-key"
+```
+
+Clients send this as `Authorization: Bearer <key>` (OpenAI) or `x-api-key: <key>` (Anthropic).
 
 ## Configuration
 
@@ -183,58 +195,46 @@ Configure the Anthropic API provider with base URL `http://localhost:8080` and u
 |---|---|---|
 | `HOST` | `0.0.0.0` | Bind address |
 | `PORT` | `8080` | Listen port |
-| `LOG_LEVEL` | `info` | Log level (`debug`, `info`, `warn`, `error`) |
+| `LOG_LEVEL` | `info` | `debug` · `info` · `warn` · `error` |
 
-### Credentials (at least one required)
+### Credentials
 
-| Variable | Default | Description |
-|---|---|---|
-| `REFRESH_TOKEN` | | Kiro refresh token (Kiro Desktop auth) |
-| `PROFILE_ARN` | | AWS CodeWhisperer profile ARN |
-| `KIRO_REGION` | `us-east-1` | AWS region for Kiro API |
-| `KIRO_CREDS_FILE` | | Path to JSON credentials file |
-| `KIRO_CLI_DB_FILE` | | Path to Kiro CLI SQLite database |
+| Variable | Description |
+|---|---|
+| `KIRO_CLI_DB_FILE` | Path to Kiro CLI SQLite database |
+| `KIRO_CREDS_FILE` | Path to JSON credentials file |
+| `REFRESH_TOKEN` | Kiro refresh token directly |
+| `PROFILE_ARN` | AWS CodeWhisperer profile ARN |
+| `KIRO_REGION` | AWS region (default: `us-east-1`) |
 
 ### Proxy
 
 | Variable | Default | Description |
 |---|---|---|
-| `PROXY_API_KEY` | | API key clients must provide (empty = no auth) |
-| `VPN_PROXY_URL` | | HTTP proxy for upstream Kiro requests |
+| `PROXY_API_KEY` | _(none)_ | API key clients must provide |
+| `VPN_PROXY_URL` | _(none)_ | HTTP proxy for upstream Kiro requests |
 
-### Timeouts and behavior
+### Timeouts & behavior
 
 | Variable | Default | Description |
 |---|---|---|
 | `STREAMING_READ_TIMEOUT` | `300` | Max seconds waiting for streaming data |
-| `FIRST_TOKEN_TIMEOUT` | `15` | Max seconds waiting for the first token |
+| `FIRST_TOKEN_TIMEOUT` | `15` | Max seconds waiting for first token |
 | `FIRST_TOKEN_MAX_RETRIES` | `3` | Retries on first-token timeout |
-| `FAKE_REASONING` | `true` | Detect and handle `<thinking>` tags |
-| `FAKE_REASONING_HANDLING` | `as_reasoning_content` | How to handle thinking tags (`as_reasoning_content`, `remove`, `pass`, `strip_tags`) |
+| `FAKE_REASONING` | `true` | Detect `<thinking>` tags |
+| `FAKE_REASONING_HANDLING` | `as_reasoning_content` | `as_reasoning_content` · `remove` · `pass` · `strip_tags` |
 | `TRUNCATION_RECOVERY` | `true` | Retry on truncated responses |
-| `DEBUG_MODE` | `off` | Debug logging (`off`, `errors`, `all`) |
+| `DEBUG_MODE` | `off` | `off` · `errors` · `all` |
 
-## Prerequisites
+## Building from source
 
-- [Go](https://go.dev/) 1.24+
-- [just](https://github.com/casey/just)
-- [gofumpt](https://github.com/mvdan/gofumpt)
-- [golangci-lint](https://golangci-lint.run/) v2
-
-## Commands
+**Requires:** [Go](https://go.dev/) 1.24+ · [just](https://github.com/casey/just) · [gofumpt](https://github.com/mvdan/gofumpt) · [golangci-lint](https://golangci-lint.run/) v2
 
 ```sh
-just          # List available commands
-just dev      # Run in development mode
-just build    # Build binary to bin/giro
-just test     # Run tests with race detection
-just cover    # Run tests with coverage report
-just e2e-mock # Run deterministic mock end-to-end tests
-just e2e-real # Run real upstream smoke tests (requires env credentials)
-just fmt      # Format code
-just lint     # Run linter
-just lint-fix # Run linter with auto-fix
-just check    # Format + lint + test
-just tidy     # Tidy and verify dependencies
-just clean    # Remove build artifacts
+just build      # → bin/giro
+just test       # tests with race detection
+just check      # fmt + lint + test (run before committing)
+just cover      # tests with coverage report → coverage.html
 ```
+
+Run `just` to see all available commands.
