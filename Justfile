@@ -6,11 +6,15 @@ default:
 dev:
     go run ./cmd/giro
 
+# Run with kiro-cli credentials (auto-detects OS)
+run:
+    KIRO_CLI_DB_FILE="$(if [ "$(uname)" = "Darwin" ]; then echo ~/Library/Application\ Support/kiro-cli/data.sqlite3; else echo ~/.local/share/kiro-cli/data.sqlite3; fi)" go run ./cmd/giro
+
 # Run with kiro-cli credentials (Linux)
 run-linux:
     KIRO_CLI_DB_FILE="~/.local/share/kiro-cli/data.sqlite3" go run ./cmd/giro
 
-# Run with kiro-cli credentials (macOS)
+# Run with kiro-cli credentials (macOS — same path for ARM and Intel)
 run-macos:
     KIRO_CLI_DB_FILE="~/Library/Application Support/kiro-cli/data.sqlite3" go run ./cmd/giro
 

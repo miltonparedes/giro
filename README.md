@@ -33,10 +33,15 @@ If you have the [Kiro IDE](https://kiro.dev) or `kiro-cli` installed, giro can r
 
 ```sh
 # Find the database — typically at one of these paths:
-# Linux:   ~/.local/share/kiro-cli/data.sqlite3
-# macOS:   ~/Library/Application Support/kiro-cli/data.sqlite3
+# Linux:         ~/.local/share/kiro-cli/data.sqlite3
+# macOS (ARM):   ~/Library/Application Support/kiro-cli/data.sqlite3
+# macOS (Intel): ~/Library/Application Support/kiro-cli/data.sqlite3
 
+# Linux
 export KIRO_CLI_DB_FILE="~/.local/share/kiro-cli/data.sqlite3"
+# macOS (both ARM and Intel)
+export KIRO_CLI_DB_FILE="~/Library/Application Support/kiro-cli/data.sqlite3"
+
 just dev
 ```
 
@@ -118,13 +123,22 @@ curl http://localhost:8080/v1/messages \
   -H "x-api-key: my-secret-key" \
   -H "Content-Type: application/json" \
   -d '{"model": "claude-sonnet-4", "max_tokens": 1024, "messages": [{"role": "user", "content": "Hello"}]}'
+
+# Opus 4.6 (OpenAI-compatible, streaming)
+curl http://localhost:8080/v1/chat/completions \
+  -H "Authorization: Bearer my-secret-key" \
+  -H "Content-Type: application/json" \
+  -d '{"model": "claude-opus-4-6", "stream": true, "messages": [{"role": "user", "content": "Hello"}]}'
 ```
 
 ## Quick start
 
 ```sh
 # 1. Set credentials (pick one)
+# Linux:
 export KIRO_CLI_DB_FILE="~/.local/share/kiro-cli/data.sqlite3"
+# macOS:
+export KIRO_CLI_DB_FILE="~/Library/Application Support/kiro-cli/data.sqlite3"
 # or: export KIRO_CREDS_FILE="path/to/credentials.json"
 # or: export REFRESH_TOKEN="your-token"
 
