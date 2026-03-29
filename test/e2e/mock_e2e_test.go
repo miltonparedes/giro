@@ -19,6 +19,10 @@ import (
 	"github.com/miltonparedes/giro/internal/server"
 )
 
+// testPNGBase64 is a valid 10×10 solid red PNG for vision tests.
+// Truncated or 1×1 images cause "Improperly formed request" on the real Kiro upstream.
+const testPNGBase64 = "iVBORw0KGgoAAAANSUhEUgAAAAoAAAAKCAIAAAACUFjqAAAAEklEQVR4nGP4z8CAB+GTG8HSALfKY52fTcuYAAAAAElFTkSuQmCC"
+
 func newMockAuthManager(t *testing.T, apiHost, qHost string) *auth.KiroAuthManager {
 	t.Helper()
 
@@ -178,7 +182,7 @@ func TestE2EMock_OpenAIAndAnthropic(t *testing.T) {
 		}
 	})
 
-	// VAL-OPENAI-008: OpenAI base64 vision via e2e mock.
+	// VAL-OPENAI-008: OpenAI base64 vision via e2e mock (valid 10×10 PNG).
 	t.Run("openai vision non-stream", func(t *testing.T) {
 		body := `{
 			"model": "claude-sonnet-4",
@@ -186,7 +190,7 @@ func TestE2EMock_OpenAIAndAnthropic(t *testing.T) {
 				"role": "user",
 				"content": [
 					{"type": "text", "text": "What is in this image?"},
-					{"type": "image_url", "image_url": {"url": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUg=="}}
+					{"type": "image_url", "image_url": {"url": "data:image/png;base64,` + testPNGBase64 + `"}}
 				]
 			}],
 			"stream": false
@@ -213,7 +217,7 @@ func TestE2EMock_OpenAIAndAnthropic(t *testing.T) {
 		}
 	})
 
-	// VAL-ANTHROPIC-009: Anthropic base64 vision via e2e mock.
+	// VAL-ANTHROPIC-009: Anthropic base64 vision via e2e mock (valid 10×10 PNG).
 	t.Run("anthropic vision non-stream", func(t *testing.T) {
 		body := `{
 			"model": "claude-sonnet-4",
@@ -226,8 +230,8 @@ func TestE2EMock_OpenAIAndAnthropic(t *testing.T) {
 						"type": "image",
 						"source": {
 							"type": "base64",
-							"media_type": "image/jpeg",
-							"data": "/9j/4AAQSkZJRgABAQtest"
+							"media_type": "image/png",
+							"data": "` + testPNGBase64 + `"
 						}
 					}
 				]
