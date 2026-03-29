@@ -1,0 +1,16 @@
+commands:
+  install: go mod download
+  typecheck: go test -run '^$' -p 16 ./...
+  build: go build -o bin/giro ./cmd/giro
+  test: go test -race -count=1 -p 16 ./...
+  lint: golangci-lint run
+  fmt: gofumpt -w .
+  check: just check
+
+services:
+  giro:
+    start: HOST=127.0.0.1 PORT=8080 PROXY_API_KEY=giro-validation-key KIRO_CLI_DB_FILE="$HOME/.local/share/kiro-cli/data.sqlite3" go run ./cmd/giro
+    stop: lsof -ti :8080 | xargs -r kill
+    healthcheck: curl -sf http://127.0.0.1:8080/health
+    port: 8080
+    depends_on: []
