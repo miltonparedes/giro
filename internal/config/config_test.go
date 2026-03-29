@@ -235,9 +235,11 @@ func TestAddr(t *testing.T) {
 }
 
 func TestValidate_NoCredentials(t *testing.T) {
-	cfg := Config{}
-	if err := cfg.Validate(); err == nil {
-		t.Error("expected error when no credentials set")
+	// Credential validation has moved to auth.ResolveSource;
+	// Config.Validate only checks non-credential configuration.
+	cfg := Config{StreamingReadTimeout: 300, FirstTokenTimeout: 15}
+	if err := cfg.Validate(); err != nil {
+		t.Errorf("unexpected error: %v", err)
 	}
 }
 
