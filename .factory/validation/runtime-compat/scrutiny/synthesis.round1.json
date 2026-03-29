@@ -1,0 +1,76 @@
+{
+  "milestone": "runtime-compat",
+  "round": 1,
+  "status": "fail",
+  "validatorsRun": {
+    "test": {
+      "passed": true,
+      "command": "go test -race -count=1 -p 16 ./...",
+      "exitCode": 0
+    },
+    "typecheck": {
+      "passed": true,
+      "command": "go test -run '^$' -p 16 ./...",
+      "exitCode": 0
+    },
+    "lint": {
+      "passed": true,
+      "command": "golangci-lint run",
+      "exitCode": 0
+    }
+  },
+  "reviewsSummary": {
+    "total": 4,
+    "passed": 2,
+    "failed": 2,
+    "failedFeatures": [
+      "openai-surface-compatibility-under-autodetection",
+      "anthropic-surface-compatibility-under-autodetection"
+    ]
+  },
+  "blockingIssues": [
+    {
+      "featureId": "openai-surface-compatibility-under-autodetection",
+      "severity": "blocking",
+      "description": "The added VAL-OPENAI-003 coverage does not verify that a model ID advertised by `/v1/models` is the model actually forwarded through the chat-completions path, so the claimed assertion coverage is incomplete."
+    },
+    {
+      "featureId": "anthropic-surface-compatibility-under-autodetection",
+      "severity": "blocking",
+      "description": "The added VAL-ANTHROPIC-006 coverage does not inspect the upstream request, so it can pass even if Anthropic `tool_result` continuation blocks are dropped or malformed before reaching Kiro."
+    }
+  ],
+  "appliedUpdates": [
+    {
+      "target": "library",
+      "description": "Updated `.factory/library/user-testing.md` to distinguish explicit-source versus resolved-source local boot commands so autodetection-scoped validation does not accidentally force `KIRO_CLI_DB_FILE`.",
+      "sourceFeature": "anthropic-surface-compatibility-under-autodetection"
+    },
+    {
+      "target": "library",
+      "description": "Updated `.factory/library/user-testing.md` with the live-validation note that tiny `1x1` images can be rejected upstream, and that vision validation should use a larger fixture such as `10x10` PNG or larger.",
+      "sourceFeature": "cross-protocol-vision-support"
+    }
+  ],
+  "suggestedGuidanceUpdates": [
+    {
+      "target": "skill:auth-source-worker",
+      "suggestion": "Clarify how workers should report justified exceptions to the 'failing tests first' rule for assurance-only features whose implementation already satisfies the target behavior before new coverage is added.",
+      "evidence": "The review for `autodetected-source-refresh-persistence` found the worker documenting that behavior already existed and the new tests passed immediately, while still marking `followedProcedure=true`; the current skill language does not clearly distinguish full compliance from a justified exception.",
+      "isSystemic": false
+    },
+    {
+      "target": "skill:gateway-surface-worker",
+      "suggestion": "Clarify the expected `skillFeedback` and TDD reporting for assurance-only compatibility features that primarily add coverage around already-working behavior, so workers either record a justified exception or the skill explicitly allows that mode.",
+      "evidence": "Reviews for `openai-surface-compatibility-under-autodetection` and `cross-protocol-vision-support` both noted that the worker reported `followedProcedure=true` even though the work mainly added compatibility coverage for behavior that already worked, and the current skill text does not define how to report that case.",
+      "isSystemic": true
+    }
+  ],
+  "rejectedObservations": [
+    {
+      "observation": "The `gateway-surface-worker` pre-edit reads of `.factory/library/architecture.md` and `.factory/library/user-testing.md` should be turned into a new guidance update.",
+      "reason": "rejected because the skill already requires those reads; this review evidence points to worker adherence/reporting drift rather than a missing or incorrect skill instruction."
+    }
+  ],
+  "previousRound": null
+}

@@ -1,0 +1,21 @@
+{
+  "featureId": "anthropic-tool-result-forwarding-proof-fix",
+  "reviewedAt": "2026-03-29T21:38:16.548228+00:00",
+  "commitId": "4e5b358ac17b51305fca06ebbca9435e9355911f",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "The fix directly addresses the prior scrutiny failure: VAL-ANTHROPIC-006 now captures the outbound Kiro request and asserts that the assistant tool_use replay and matching user tool_result continuation reach Kiro intact, so the test no longer passes on a canned surface response alone.",
+    "issues": []
+  },
+  "sharedStateObservations": [
+    {
+      "area": "skills",
+      "observation": "The worker again marked `skillFeedback.followedProcedure=true`, but the transcript skeleton does not show the required pre-edit read of `.factory/library/user-testing.md` from `gateway-surface-worker` step 1.",
+      "evidence": "`/var/home/milton/Workspaces/M/giro/.factory/skills/gateway-surface-worker/SKILL.md` step 1 requires reading both `.factory/library/architecture.md` and `.factory/library/user-testing.md` before editing. The transcript skeleton for worker session `3a26d934-9675-4f39-a705-32a2ae9e0de7` shows reads of mission files, `services.yaml`, `.factory/library/architecture.md`, and code files before the first edit to `internal/handler/anthropic_integration_test.go`, but no read of `.factory/library/user-testing.md`."
+    }
+  ],
+  "addressesFailureFrom": "/var/home/milton/Workspaces/M/giro/.factory/validation/runtime-compat/scrutiny/reviews/anthropic-surface-compatibility-under-autodetection.json",
+  "summary": "Review passed: the fix closes the prior gap by asserting the forwarded Kiro continuation payload itself, so VAL-ANTHROPIC-006 now proves tool_use replay and matching tool_result forwarding instead of only checking the final Anthropic response."
+}

@@ -1,0 +1,21 @@
+{
+  "featureId": "openai-advertised-model-forwarding-proof-fix",
+  "reviewedAt": "2026-03-29T15:38:40-06:00",
+  "commitId": "4a7f6edeb99ccf970193fed51e028afb4ceae236",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "The rerun fix adequately closes the original scrutiny failure. After reviewing the original OpenAI surface-compatibility diff and the fix diff, the strengthened VAL-OPENAI-003 test now captures the outbound Kiro payload and asserts that the exact model advertised by `/v1/models` is the `modelId` forwarded through the chat-completions path, so the test no longer passes on a successful mock response alone.",
+    "issues": []
+  },
+  "sharedStateObservations": [
+    {
+      "area": "skills",
+      "observation": "The worker marked `skillFeedback.followedProcedure=true`, but the transcript skeleton does not show the required pre-edit reads of `.factory/library/architecture.md` or `.factory/library/user-testing.md` from `gateway-surface-worker` step 1.",
+      "evidence": "`/var/home/milton/Workspaces/M/giro/.factory/skills/gateway-surface-worker/SKILL.md` step 1 requires reading both files before editing. The transcript skeleton for worker session `03b68ad6-a951-4ea4-bd42-d8addd21136b` shows reads of mission files, `services.yaml`, `internal/handler/openai_integration_test.go`, `internal/handler/test_helpers_test.go`, `internal/handler/openai.go`, `internal/convert/core.go`, and `internal/model/resolver.go` before the edit to `internal/handler/openai_integration_test.go`, but no read of `.factory/library/architecture.md` or `.factory/library/user-testing.md`."
+    }
+  ],
+  "addressesFailureFrom": "/var/home/milton/Workspaces/M/giro/.factory/validation/runtime-compat/scrutiny/reviews/openai-surface-compatibility-under-autodetection.json",
+  "summary": "Review passed: commit `4a7f6edeb99ccf970193fed51e028afb4ceae236` fixes the prior VAL-OPENAI-003 coverage gap by asserting the forwarded Kiro `modelId` itself, so runtime-compat scrutiny can now treat the advertised-model forwarding proof as complete."
+}
