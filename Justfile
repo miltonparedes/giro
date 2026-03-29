@@ -58,6 +58,10 @@ check: fmt lint test
 tidy:
     go mod tidy && go mod verify
 
+# Run live validation matrix against real local credentials
+validate:
+    ./test/live/validate_matrix.sh
+
 # Remove build artifacts
 clean:
     rm -rf bin/ coverage.out coverage.html
