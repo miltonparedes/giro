@@ -592,7 +592,7 @@ func TestOpenAIHandler_ChatCompletions_NonStream_Vision(t *testing.T) {
 					t.Errorf("kiro payload image format = %v, want png", img0["format"])
 				}
 				source, _ := img0["source"].(map[string]any)
-				if source["bytes"] != "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==" {
+				if source["bytes"] != testPNGBase64 {
 					t.Errorf("kiro payload image data mismatch")
 				}
 			}
@@ -609,14 +609,14 @@ func TestOpenAIHandler_ChatCompletions_NonStream_Vision(t *testing.T) {
 		testHandlerConfig(),
 	)
 
-	// OpenAI vision request with base64 data URL image.
+	// OpenAI vision request with base64 data URL image (valid 10×10 PNG).
 	body := `{
 		"model": "claude-sonnet-4",
 		"messages": [{
 			"role": "user",
 			"content": [
 				{"type": "text", "text": "What do you see in this image?"},
-				{"type": "image_url", "image_url": {"url": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg=="}}
+				{"type": "image_url", "image_url": {"url": "` + testPNGDataURL + `"}}
 			]
 		}],
 		"stream": false
@@ -668,13 +668,14 @@ func TestOpenAIHandler_ChatCompletions_Stream_Vision(t *testing.T) {
 		testHandlerConfig(),
 	)
 
+	// Streaming vision request with valid 10×10 PNG.
 	body := `{
 		"model": "claude-sonnet-4",
 		"messages": [{
 			"role": "user",
 			"content": [
 				{"type": "text", "text": "Describe the image."},
-				{"type": "image_url", "image_url": {"url": "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQ=="}}
+				{"type": "image_url", "image_url": {"url": "` + testPNGDataURL + `"}}
 			]
 		}],
 		"stream": true
@@ -731,12 +732,13 @@ func TestOpenAIHandler_ChatCompletions_Vision_History(t *testing.T) {
 		testHandlerConfig(),
 	)
 
+	// History vision request with valid 10×10 PNG in the first user message.
 	body := `{
 		"model": "claude-sonnet-4",
 		"messages": [
 			{"role": "user", "content": [
 				{"type": "text", "text": "What is this?"},
-				{"type": "image_url", "image_url": {"url": "data:image/png;base64,iVBOR"}}
+				{"type": "image_url", "image_url": {"url": "` + testPNGDataURL + `"}}
 			]},
 			{"role": "assistant", "content": "It's a small image."},
 			{"role": "user", "content": "Tell me more about that image."}

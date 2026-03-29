@@ -757,17 +757,17 @@ func TestAnthropicHandler_Messages_NonStream_Vision(t *testing.T) {
 			if imgs, ok := ui["images"].([]any); ok && len(imgs) > 0 {
 				receivedImages = true
 				img0, _ := imgs[0].(map[string]any)
-				if img0["format"] != "jpeg" {
-					t.Errorf("kiro payload image format = %v, want jpeg", img0["format"])
+				if img0["format"] != "png" {
+					t.Errorf("kiro payload image format = %v, want png", img0["format"])
 				}
 				source, _ := img0["source"].(map[string]any)
-				if source["bytes"] != "/9j/4AAQSkZJRgABAQtest" {
+				if source["bytes"] != testPNGBase64 {
 					t.Errorf("kiro payload image data mismatch")
 				}
 			}
 		}
 		w.WriteHeader(http.StatusOK)
-		_, _ = fmt.Fprint(w, `{"content":"I can see a photograph in the image."}`)
+		_, _ = fmt.Fprint(w, `{"content":"I can see a small red square in the image."}`)
 	}))
 	defer kiro.Close()
 
@@ -778,7 +778,7 @@ func TestAnthropicHandler_Messages_NonStream_Vision(t *testing.T) {
 		testHandlerConfig(),
 	)
 
-	// Anthropic vision request with base64 image block.
+	// Anthropic vision request with valid 10×10 PNG base64 image block.
 	body := `{
 		"model": "claude-sonnet-4",
 		"max_tokens": 64,
@@ -790,8 +790,8 @@ func TestAnthropicHandler_Messages_NonStream_Vision(t *testing.T) {
 					"type": "image",
 					"source": {
 						"type": "base64",
-						"media_type": "image/jpeg",
-						"data": "/9j/4AAQSkZJRgABAQtest"
+						"media_type": "image/png",
+						"data": "` + testPNGBase64 + `"
 					}
 				}
 			]
@@ -849,6 +849,7 @@ func TestAnthropicHandler_Messages_Stream_Vision(t *testing.T) {
 		testHandlerConfig(),
 	)
 
+	// Streaming vision request with valid 10×10 PNG.
 	body := `{
 		"model": "claude-sonnet-4",
 		"max_tokens": 64,
@@ -861,7 +862,7 @@ func TestAnthropicHandler_Messages_Stream_Vision(t *testing.T) {
 					"source": {
 						"type": "base64",
 						"media_type": "image/png",
-						"data": "iVBORw0KGgoAAAANSUhEUg=="
+						"data": "` + testPNGBase64 + `"
 					}
 				}
 			]
@@ -916,13 +917,14 @@ func TestAnthropicHandler_Messages_Vision_History(t *testing.T) {
 		testHandlerConfig(),
 	)
 
+	// History vision request with valid 10×10 PNG in the first user message.
 	body := `{
 		"model": "claude-sonnet-4",
 		"max_tokens": 64,
 		"messages": [
 			{"role": "user", "content": [
 				{"type": "text", "text": "What is this?"},
-				{"type": "image", "source": {"type": "base64", "media_type": "image/png", "data": "iVBOR"}}
+				{"type": "image", "source": {"type": "base64", "media_type": "image/png", "data": "` + testPNGBase64 + `"}}
 			]},
 			{"role": "assistant", "content": [{"type": "text", "text": "It's a small image."}]},
 			{"role": "user", "content": "Tell me more about that image."}

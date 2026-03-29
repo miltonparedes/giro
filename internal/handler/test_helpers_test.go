@@ -15,6 +15,16 @@ import (
 	"github.com/miltonparedes/giro/internal/model"
 )
 
+// testPNGBase64 is a valid 10×10 solid red PNG image encoded as base64.
+// This is the minimum viable fixture for vision tests: small enough to keep
+// test payloads readable but large enough that the real Kiro upstream accepts
+// it without "Improperly formed request" errors (1×1 or truncated PNGs are
+// silently dropped or rejected upstream even though they pass mock coverage).
+const testPNGBase64 = "iVBORw0KGgoAAAANSUhEUgAAAAoAAAAKCAIAAAACUFjqAAAAEklEQVR4nGP4z8CAB+GTG8HSALfKY52fTcuYAAAAAElFTkSuQmCC"
+
+// testPNGDataURL is testPNGBase64 wrapped in a data URL for OpenAI image_url blocks.
+const testPNGDataURL = "data:image/png;base64," + testPNGBase64
+
 func newTestAuthManager(t *testing.T, apiHost, qHost string) *auth.KiroAuthManager {
 	t.Helper()
 
