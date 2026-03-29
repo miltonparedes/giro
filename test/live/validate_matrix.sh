@@ -369,11 +369,13 @@ test_vision() {
 		fail "$name" "status=$HTTP_STATUS"
 		return
 	fi
-	# The response should reference the image content (color-grounded answer).
-	if echo "$HTTP_BODY" | grep -q '"type":"message"'; then
+	# The image is a solid red 10×10 PNG. A generic message envelope that
+	# ignores the image will not mention "red". Require an image-grounded
+	# answer that names the dominant color (case-insensitive).
+	if echo "$HTTP_BODY" | grep -qi 'red'; then
 		pass "$name"
 	else
-		fail "$name" "response missing type:message"
+		fail "$name" "response does not mention 'red' — expected image-grounded answer; body=$HTTP_BODY"
 	fi
 }
 
