@@ -390,12 +390,16 @@ func TestAnthropicHandler_Messages_NonStream_ToolUse(t *testing.T) {
 	}
 }
 
-// VAL-ANTHROPIC-006: Tool-result continuation is accepted on the next turn.
+// VAL-ANTHROPIC-006: Tool-result continuation forwards tool_use, toolUseId,
+// and tool_result intact to Kiro, not just returning a successful surface response.
 func TestAnthropicHandler_Messages_ToolResultContinuation(t *testing.T) {
-	kiro := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	var capturedPayload map[string]any
+	kiro := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Capture the outbound Kiro request body to verify continuation payload.
+		if err := json.NewDecoder(r.Body).Decode(&capturedPayload); err != nil {
+			t.Errorf("failed to decode kiro request body: %v", err)
+		}
 		w.WriteHeader(http.StatusOK)
-		// Always return text content; the test verifies the handler accepts the
-		// tool-result payload and produces a final assistant text answer.
 		_, _ = fmt.Fprint(w, `{"content":"The weather is sunny and 22°C in NYC."}`)
 	}))
 	defer kiro.Close()
@@ -433,8 +437,23 @@ func TestAnthropicHandler_Messages_ToolResultContinuation(t *testing.T) {
 		t.Fatalf("status = %d, want %d; body=%s", rr.Code, http.StatusOK, rr.Body.String())
 	}
 
+	// --- Surface response assertions ---
+	assertToolResultContinuationSurface(t, rr.Body.Bytes())
+
+	// --- Outbound Kiro payload assertions (strengthened for VAL-ANTHROPIC-006) ---
+	if capturedPayload == nil {
+		t.Fatal("kiro mock did not receive any request payload")
+	}
+	assertKiroToolUseContinuationPayload(t, capturedPayload)
+}
+
+// assertToolResultContinuationSurface verifies the surface response for a
+// tool-result continuation: stop_reason end_turn and a non-empty text block.
+func assertToolResultContinuationSurface(t *testing.T, body []byte) {
+	t.Helper()
+
 	var resp map[string]any
-	if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
+	if err := json.Unmarshal(body, &resp); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
 
@@ -447,7 +466,6 @@ func TestAnthropicHandler_Messages_ToolResultContinuation(t *testing.T) {
 		t.Fatal("content is missing or empty")
 	}
 
-	// The final response should contain a text block.
 	block := content[0].(map[string]any)
 	if block["type"] != "text" {
 		t.Fatalf("content[0].type = %v, want text", block["type"])
@@ -456,6 +474,96 @@ func TestAnthropicHandler_Messages_ToolResultContinuation(t *testing.T) {
 	if text == "" {
 		t.Fatal("final text answer is empty")
 	}
+}
+
+// assertKiroToolUseContinuationPayload verifies the outbound Kiro request
+// contains the assistant tool_use with matching toolUseId in history and the
+// user tool_result with matching toolUseId in the current message context.
+func assertKiroToolUseContinuationPayload(t *testing.T, payload map[string]any) {
+	t.Helper()
+
+	convState, _ := payload["conversationState"].(map[string]any)
+	if convState == nil {
+		t.Fatal("kiro payload missing conversationState")
+	}
+
+	assertKiroHistoryContainsToolUse(t, convState)
+	assertKiroCurrentMessageContainsToolResult(t, convState)
+}
+
+// assertKiroHistoryContainsToolUse verifies the history contains an assistant
+// turn with a toolUse entry matching toolUseId=toolu_abc, name=get_weather,
+// and input.city=NYC.
+func assertKiroHistoryContainsToolUse(t *testing.T, convState map[string]any) {
+	t.Helper()
+
+	historyRaw, _ := convState["history"].([]any)
+	if len(historyRaw) == 0 {
+		t.Fatal("kiro payload history is empty; expected assistant tool_use turn")
+	}
+
+	for _, entry := range historyRaw {
+		hm, _ := entry.(map[string]any)
+		arm, _ := hm["assistantResponseMessage"].(map[string]any)
+		if arm == nil {
+			continue
+		}
+		toolUses, _ := arm["toolUses"].([]any)
+		for _, tu := range toolUses {
+			tuMap, _ := tu.(map[string]any)
+			if tuMap["toolUseId"] != "toolu_abc" || tuMap["name"] != "get_weather" {
+				continue
+			}
+			input, _ := tuMap["input"].(map[string]any)
+			if input["city"] != "NYC" {
+				t.Fatalf("kiro history toolUse input.city = %v, want NYC", input["city"])
+			}
+			return // found and verified
+		}
+	}
+	t.Fatal("kiro history missing assistant toolUse with toolUseId=toolu_abc and name=get_weather")
+}
+
+// assertKiroCurrentMessageContainsToolResult verifies the currentMessage
+// contains a toolResult with toolUseId=toolu_abc and content matching the
+// supplied tool result text.
+func assertKiroCurrentMessageContainsToolResult(t *testing.T, convState map[string]any) {
+	t.Helper()
+
+	cm, _ := convState["currentMessage"].(map[string]any)
+	if cm == nil {
+		t.Fatal("kiro payload missing currentMessage")
+	}
+	ui, _ := cm["userInputMessage"].(map[string]any)
+	if ui == nil {
+		t.Fatal("kiro payload missing userInputMessage in currentMessage")
+	}
+	uiCtx, _ := ui["userInputMessageContext"].(map[string]any)
+	if uiCtx == nil {
+		t.Fatal("kiro payload missing userInputMessageContext; tool_result not forwarded")
+	}
+	toolResultsRaw, _ := uiCtx["toolResults"].([]any)
+	if len(toolResultsRaw) == 0 {
+		t.Fatal("kiro payload toolResults is empty; tool_result block was not forwarded")
+	}
+
+	for _, tr := range toolResultsRaw {
+		trMap, _ := tr.(map[string]any)
+		if trMap["toolUseId"] != "toolu_abc" {
+			continue
+		}
+		trContent, _ := trMap["content"].([]any)
+		if len(trContent) == 0 {
+			t.Fatal("kiro payload toolResult content is empty")
+		}
+		first, _ := trContent[0].(map[string]any)
+		trText, _ := first["text"].(string)
+		if trText != "22°C, sunny" {
+			t.Fatalf("kiro payload toolResult text = %q, want %q", trText, "22°C, sunny")
+		}
+		return // found and verified
+	}
+	t.Fatal("kiro payload missing toolResult with toolUseId=toolu_abc")
 }
 
 // VAL-ANTHROPIC-008: Streamed Anthropic tool use preserves the tool-use SSE lifecycle.
