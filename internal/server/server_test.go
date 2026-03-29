@@ -1,6 +1,7 @@
 package server
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -123,6 +124,102 @@ func TestNew_AnthropicAuth_XAPIKeyAndBearer(t *testing.T) {
 			t.Fatalf("status = %d, expected non-401 with valid bearer key", rr.Code)
 		}
 	})
+}
+
+// VAL-OPENAI-001: Bearer client auth rejection returns OpenAI error envelope.
+func TestNew_OpenAI_AuthRejection_ErrorEnvelope(t *testing.T) {
+	r := newRouter(t)
+
+	for _, tc := range []struct {
+		name   string
+		method string
+		path   string
+		auth   string
+	}{
+		{"models_no_auth", http.MethodGet, "/v1/models", ""},
+		{"models_wrong_key", http.MethodGet, "/v1/models", "Bearer wrong-key"},
+		{"completions_no_auth", http.MethodPost, "/v1/chat/completions", ""},
+		{"completions_wrong_key", http.MethodPost, "/v1/chat/completions", "Bearer wrong-key"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			req := httptest.NewRequest(tc.method, tc.path, strings.NewReader("{}"))
+			if tc.auth != "" {
+				req.Header.Set("Authorization", tc.auth)
+			}
+			rr := httptest.NewRecorder()
+			r.ServeHTTP(rr, req)
+
+			if rr.Code != http.StatusUnauthorized {
+				t.Fatalf("status = %d, want %d", rr.Code, http.StatusUnauthorized)
+			}
+
+			var body map[string]any
+			if err := json.Unmarshal(rr.Body.Bytes(), &body); err != nil {
+				t.Fatalf("decode body: %v", err)
+			}
+
+			errObj, ok := body["error"].(map[string]any)
+			if !ok {
+				t.Fatal("response missing 'error' object")
+			}
+			if errObj["message"] == nil || errObj["message"] == "" {
+				t.Fatal("error.message is empty or missing")
+			}
+			if errObj["type"] != "authentication_error" {
+				t.Fatalf("error.type = %v, want authentication_error", errObj["type"])
+			}
+			if code, _ := errObj["code"].(float64); int(code) != http.StatusUnauthorized {
+				t.Fatalf("error.code = %v, want %d", errObj["code"], http.StatusUnauthorized)
+			}
+		})
+	}
+}
+
+// VAL-OPENAI-002: /v1/models returns a valid OpenAI model-list envelope.
+func TestNew_Models_Envelope(t *testing.T) {
+	r := newRouter(t)
+
+	req := httptest.NewRequest(http.MethodGet, "/v1/models", nil)
+	req.Header.Set("Authorization", "Bearer test-key")
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", rr.Code, http.StatusOK)
+	}
+
+	var body map[string]any
+	if err := json.Unmarshal(rr.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode body: %v", err)
+	}
+
+	if body["object"] != "list" {
+		t.Fatalf("object = %v, want list", body["object"])
+	}
+
+	data, ok := body["data"].([]any)
+	if !ok || len(data) == 0 {
+		t.Fatal("data must be a non-empty array")
+	}
+
+	for i, item := range data {
+		m, ok := item.(map[string]any)
+		if !ok {
+			t.Fatalf("data[%d] is not an object", i)
+		}
+		if m["id"] == nil || m["id"] == "" {
+			t.Fatalf("data[%d].id is empty", i)
+		}
+		if m["object"] != "model" {
+			t.Fatalf("data[%d].object = %v, want model", i, m["object"])
+		}
+		if m["created"] == nil {
+			t.Fatalf("data[%d].created is missing", i)
+		}
+		if m["owned_by"] == nil || m["owned_by"] == "" {
+			t.Fatalf("data[%d].owned_by is empty", i)
+		}
+	}
 }
 
 func TestNew_CORSPreflight(t *testing.T) {
