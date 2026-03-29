@@ -1,0 +1,71 @@
+{
+  "groupId": "vision-rerun",
+  "surface": "api-shell-curl",
+  "testedAt": "2026-03-29T22:38:15.925082+00:00",
+  "preflightChecks": [
+    {
+      "id": "HEALTH-CHECK",
+      "status": "pass",
+      "summary": "GET /health on the shared 127.0.0.1:8080 service returned HTTP 200 and the healthy status body.",
+      "evidence": [
+        "runtime-compat/vision-rerun/health.headers",
+        "runtime-compat/vision-rerun/health.body",
+        "runtime-compat/vision-rerun/health.status"
+      ]
+    },
+    {
+      "id": "MODELS-CHECK",
+      "status": "pass",
+      "summary": "Authenticated GET /v1/models returned HTTP 200 with object=list and 12 advertised models.",
+      "evidence": [
+        "runtime-compat/vision-rerun/models.headers",
+        "runtime-compat/vision-rerun/models.body.json",
+        "runtime-compat/vision-rerun/models.status"
+      ]
+    }
+  ],
+  "assertions": [
+    {
+      "id": "VAL-OPENAI-008",
+      "status": "pass",
+      "summary": "The OpenAI vision rerun returned HTTP 200 and the assistant answered \"Red blue,\" grounding the response in the PNG's dominant red area and blue bottom stripe.",
+      "evidence": [
+        "runtime-compat/vision-rerun/fixture-manifest.json",
+        "runtime-compat/vision-rerun/vision-rerun-test.png",
+        "runtime-compat/vision-rerun/vision-rerun-test.data-url.txt",
+        "runtime-compat/vision-rerun/VAL-OPENAI-008-rerun.payload.json",
+        "runtime-compat/vision-rerun/VAL-OPENAI-008-rerun.headers",
+        "runtime-compat/vision-rerun/VAL-OPENAI-008-rerun.json",
+        "runtime-compat/vision-rerun/VAL-OPENAI-008-rerun.status",
+        "runtime-compat/vision-rerun/vision-rerun-summary.json"
+      ]
+    },
+    {
+      "id": "VAL-ANTHROPIC-009",
+      "status": "pass",
+      "summary": "The Anthropic vision rerun returned HTTP 200 and described a dominant red image with a bottom stripe, so the reply was image-grounded rather than claiming no image was attached; it characterized the stripe as black/dark instead of blue.",
+      "evidence": [
+        "runtime-compat/vision-rerun/fixture-manifest.json",
+        "runtime-compat/vision-rerun/vision-rerun-test.png",
+        "runtime-compat/vision-rerun/vision-rerun-test.base64.txt",
+        "runtime-compat/vision-rerun/VAL-ANTHROPIC-009-rerun.payload.json",
+        "runtime-compat/vision-rerun/VAL-ANTHROPIC-009-rerun.headers",
+        "runtime-compat/vision-rerun/VAL-ANTHROPIC-009-rerun.json",
+        "runtime-compat/vision-rerun/VAL-ANTHROPIC-009-rerun.status",
+        "runtime-compat/vision-rerun/vision-rerun-summary.json"
+      ]
+    }
+  ],
+  "toolsUsed": [
+    "shell",
+    "curl",
+    "python3"
+  ],
+  "frictions": [],
+  "blockers": [],
+  "setupNotes": [
+    "Used only the already-running giro process on http://127.0.0.1:8080 and did not start, stop, or restart the service.",
+    "Used the assigned isolated evidence directory for all generated fixtures, payloads, responses, and derived summaries.",
+    "Never printed or stored the proxy API key in evidence files."
+  ]
+}

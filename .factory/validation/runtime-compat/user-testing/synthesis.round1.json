@@ -1,0 +1,48 @@
+{
+  "milestone": "runtime-compat",
+  "round": 1,
+  "status": "fail",
+  "assertionsSummary": {
+    "total": 18,
+    "passed": 16,
+    "failed": 2,
+    "blocked": 0
+  },
+  "passedAssertions": [
+    "VAL-STARTUP-009",
+    "VAL-OPENAI-001",
+    "VAL-OPENAI-002",
+    "VAL-OPENAI-003",
+    "VAL-OPENAI-004",
+    "VAL-OPENAI-005",
+    "VAL-OPENAI-006",
+    "VAL-OPENAI-007",
+    "VAL-ANTHROPIC-001",
+    "VAL-ANTHROPIC-002",
+    "VAL-ANTHROPIC-003",
+    "VAL-ANTHROPIC-004",
+    "VAL-ANTHROPIC-005",
+    "VAL-ANTHROPIC-006",
+    "VAL-ANTHROPIC-007",
+    "VAL-ANTHROPIC-008"
+  ],
+  "failedAssertions": [
+    {
+      "id": "VAL-OPENAI-008",
+      "reason": "Live base64 vision request returned HTTP 200 but the assistant said no image was attached instead of grounding the response in the PNG content."
+    },
+    {
+      "id": "VAL-ANTHROPIC-009",
+      "reason": "Live base64 image request returned HTTP 200 but the assistant said no actual image file was attached, so the response was not image-grounded."
+    }
+  ],
+  "blockedAssertions": [],
+  "appliedUpdates": [
+    {
+      "target": "user-testing.md",
+      "description": "Added flow-validator guidance for runtime-compat startup refresh persistence and shared live API curl validation, including isolation rules, evidence expectations, and vision/tool-use request guidance.",
+      "source": "setup"
+    }
+  ],
+  "previousRound": null
+}
