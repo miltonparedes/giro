@@ -52,8 +52,9 @@ type ResolveInput struct {
 // candidates (including autodetection) can still resolve.
 //
 // When no explicit source resolves, autodetection probes platform-default
-// locations for kiro-cli. If nothing resolves the function returns an error
-// so startup can fail closed before binding the listen port.
+// locations for kiro-cli and kiro-ide (in that precedence order). If nothing
+// resolves the function returns an error so startup can fail closed before
+// binding the listen port.
 func ResolveSource(in ResolveInput) (*ResolvedSource, error) {
 	if src := resolveExplicitSources(in); src != nil {
 		return src, nil
@@ -64,7 +65,7 @@ func ResolveSource(in ResolveInput) (*ResolvedSource, error) {
 	}
 
 	return nil, errors.New(
-		"no credential source resolved: set KIRO_CLI_DB_FILE, KIRO_CREDS_FILE, or REFRESH_TOKEN, or install kiro-cli",
+		"no credential source resolved: set KIRO_CLI_DB_FILE, KIRO_CREDS_FILE, or REFRESH_TOKEN, or install kiro-cli/kiro-ide",
 	)
 }
 
@@ -117,8 +118,9 @@ func resolveExplicitSources(in ResolveInput) *ResolvedSource {
 }
 
 // resolveAutodetectedSources probes platform-default credential store
-// locations. Currently supports kiro-cli; kiro-ide will be added by a
-// subsequent feature.
+// locations in deterministic precedence: kiro-cli first, then kiro-ide.
+// When a higher-priority source is present but broken, the rejection is
+// logged so startup evidence stays observable.
 func resolveAutodetectedSources(in ResolveInput) *ResolvedSource {
 	homeDir := in.HomeDir
 	if homeDir == "" {
@@ -137,6 +139,28 @@ func resolveAutodetectedSources(in ResolveInput) *ResolvedSource {
 			"path", kiroCLIPath,
 		)
 		return &ResolvedSource{Kind: SourceKiroCLI, Path: kiroCLIPath, Writable: true}
+	} else if fileExists(kiroCLIPath) {
+		// The file exists but is not a valid regular file (e.g. a directory).
+		slog.Warn("autodetected credential source rejected",
+			"kind", string(SourceKiroCLI),
+			"path", kiroCLIPath,
+			"reason", err.Error(),
+		)
+	}
+
+	kiroIDEPath := defaultKiroIDECredsPath(homeDir)
+	if err := probeFile(kiroIDEPath); err == nil {
+		slog.Debug("autodetected credential source",
+			"kind", string(SourceKiroIDE),
+			"path", kiroIDEPath,
+		)
+		return &ResolvedSource{Kind: SourceKiroIDE, Path: kiroIDEPath, Writable: true}
+	} else if fileExists(kiroIDEPath) {
+		slog.Warn("autodetected credential source rejected",
+			"kind", string(SourceKiroIDE),
+			"path", kiroIDEPath,
+			"reason", err.Error(),
+		)
 	}
 
 	return nil
@@ -151,6 +175,13 @@ func defaultKiroCLIDBPath(homeDir string) string {
 	return filepath.Join(homeDir, ".local", "share", "kiro-cli", "data.sqlite3")
 }
 
+// defaultKiroIDECredsPath returns the platform-default kiro-ide credentials
+// file path for the given home directory. Both Linux and macOS use
+// ~/.kiro/credentials.json.
+func defaultKiroIDECredsPath(homeDir string) string {
+	return filepath.Join(homeDir, ".kiro", "credentials.json")
+}
+
 // probeFile checks whether a path exists and refers to a regular file (not a
 // directory). It does not read content; deeper validation is the auth
 // manager's responsibility.
@@ -163,6 +194,14 @@ func probeFile(path string) error {
 		return fmt.Errorf("path is a directory, not a regular file")
 	}
 	return nil
+}
+
+// fileExists returns true if a path exists on the filesystem, regardless of
+// whether it is a regular file or directory. Used to distinguish "not present"
+// from "present but broken" during autodetection rejection logging.
+func fileExists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
 }
 
 // BuildAuthOptions constructs Options for NewKiroAuthManager from this resolved
