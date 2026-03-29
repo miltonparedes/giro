@@ -106,7 +106,7 @@ type KiroAuthManager struct {
 func NewKiroAuthManager(opts Options) (*KiroAuthManager, error) {
 	region := opts.Region
 	if region == "" {
-		region = "us-east-1"
+		region = "us-east-1" //nolint:goconst // default region shared with config
 	}
 
 	m := &KiroAuthManager{
