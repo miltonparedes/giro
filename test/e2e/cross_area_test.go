@@ -298,7 +298,7 @@ func crossAreaAssertToolUse(t *testing.T, client *http.Client, gatewayURL string
 
 func crossAreaAssertVision(t *testing.T, client *http.Client, gatewayURL string) {
 	t.Helper()
-	body := `{"model":"claude-sonnet-4","max_tokens":64,"messages":[{"role":"user","content":[{"type":"text","text":"What is in this image?"},{"type":"image","source":{"type":"base64","media_type":"image/png","data":"` + crossAreaPNGBase64 + `"}}]}],"stream":false}`
+	body := `{"model":"claude-sonnet-4","max_tokens":64,"messages":[{"role":"user","content":[{"type":"text","text":"Describe the dominant color of this image in one word."},{"type":"image","source":{"type":"base64","media_type":"image/png","data":"` + crossAreaPNGBase64 + `"}}]}],"stream":false}`
 	req, _ := http.NewRequest(http.MethodPost, gatewayURL+"/v1/messages", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("x-api-key", "e2e-cross-key")
@@ -313,7 +313,10 @@ func crossAreaAssertVision(t *testing.T, client *http.Client, gatewayURL string)
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("status = %d, want %d; body=%s", resp.StatusCode, http.StatusOK, respBody)
 	}
-	if !strings.Contains(string(respBody), "image") {
-		t.Fatalf("vision response should reference image: %s", respBody)
+	// The image is a solid red 10×10 PNG. A generic envelope that ignores
+	// the image will not mention "red". Require image-grounded content.
+	lower := strings.ToLower(string(respBody))
+	if !strings.Contains(lower, "red") {
+		t.Fatalf("vision response should mention 'red' (image-grounded); got: %s", respBody)
 	}
 }
