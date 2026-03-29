@@ -51,3 +51,19 @@ Run against one live process whenever the milestone/feature requires full-path v
 - Rationale:
   - startup/auth validation mutates temp homes, fixture stores, and process startup state
   - lower concurrency reduces cross-test interference when validating precedence/fallback/restart behavior
+
+## Flow Validator Guidance: startup-auth-shell
+
+- Surface: shell-driven startup and credential-resolution validation.
+- Port boundary: use only `127.0.0.1:8080`; do not run more than one `giro` process at a time because this milestone's assertions all share the same fixed mission port.
+- Isolation boundary:
+  - use a fresh temp `HOME` per fixture scenario so autodetected `kiro-cli` / `kiro-ide` paths resolve inside that temp home
+  - keep fixture files, logs, and copied stores inside the assigned evidence directory
+  - stop `giro` and confirm port `8080` is free before the next startup scenario
+- Real-store boundary:
+  - read the machine's real `~/.local/share/kiro-cli/data.sqlite3` only for assertions that require live local credentials
+  - never print token values, serialized credential blobs, or raw sqlite JSON payloads
+- Evidence expectations:
+  - capture stdout/stderr for every startup attempt
+  - capture the exact curl transcript or status/body excerpt used to prove each assertion
+  - when validating rejection/fallback behavior, include both the rejection log and the eventual winning-source log in the report

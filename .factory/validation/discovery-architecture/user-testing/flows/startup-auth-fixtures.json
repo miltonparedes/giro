@@ -1,0 +1,92 @@
+{
+  "groupId": "startup-auth-fixtures",
+  "surface": "startup-auth-shell",
+  "assertions": [
+    {
+      "id": "VAL-STARTUP-001",
+      "status": "pass",
+      "summary": "Startup failed closed with no credential sources and never exposed /health.",
+      "evidence": [
+        "discovery-architecture/startup-auth-shell/group-fixtures/VAL-STARTUP-001/startup.log",
+        "discovery-architecture/startup-auth-shell/group-fixtures/VAL-STARTUP-001/health-curl.txt",
+        "discovery-architecture/startup-auth-shell/group-fixtures/VAL-STARTUP-001/result.json"
+      ]
+    },
+    {
+      "id": "VAL-STARTUP-003",
+      "status": "pass",
+      "summary": "Explicit env-backed credentials file won over healthy autodetected kiro-cli and kiro-ide fixtures.",
+      "evidence": [
+        "discovery-architecture/startup-auth-shell/group-fixtures/VAL-STARTUP-003/startup.log",
+        "discovery-architecture/startup-auth-shell/group-fixtures/VAL-STARTUP-003/health-curl.txt",
+        "discovery-architecture/startup-auth-shell/group-fixtures/VAL-STARTUP-003/result.json"
+      ]
+    },
+    {
+      "id": "VAL-STARTUP-006",
+      "status": "pass",
+      "summary": "Two separate successful startups selected the same autodetected kiro-cli path each time.",
+      "evidence": [
+        "discovery-architecture/startup-auth-shell/group-fixtures/VAL-STARTUP-006/run1-startup.log",
+        "discovery-architecture/startup-auth-shell/group-fixtures/VAL-STARTUP-006/run1-health-curl.txt",
+        "discovery-architecture/startup-auth-shell/group-fixtures/VAL-STARTUP-006/run2-startup.log",
+        "discovery-architecture/startup-auth-shell/group-fixtures/VAL-STARTUP-006/run2-health-curl.txt",
+        "discovery-architecture/startup-auth-shell/group-fixtures/VAL-STARTUP-006/result.json"
+      ]
+    },
+    {
+      "id": "VAL-STARTUP-007",
+      "status": "pass",
+      "summary": "Broken autodetected kiro-cli was rejected with a reason and startup fell back safely to kiro-ide.",
+      "evidence": [
+        "discovery-architecture/startup-auth-shell/group-fixtures/VAL-STARTUP-007/startup.log",
+        "discovery-architecture/startup-auth-shell/group-fixtures/VAL-STARTUP-007/health-curl.txt",
+        "discovery-architecture/startup-auth-shell/group-fixtures/VAL-STARTUP-007/result.json"
+      ]
+    },
+    {
+      "id": "VAL-STARTUP-010",
+      "status": "pass",
+      "summary": "Invalid explicit credentials file was rejected with a reason and startup fell back to autodetected kiro-cli.",
+      "evidence": [
+        "discovery-architecture/startup-auth-shell/group-fixtures/VAL-STARTUP-010/startup.log",
+        "discovery-architecture/startup-auth-shell/group-fixtures/VAL-STARTUP-010/health-curl.txt",
+        "discovery-architecture/startup-auth-shell/group-fixtures/VAL-STARTUP-010/result.json"
+      ]
+    },
+    {
+      "id": "VAL-STARTUP-011",
+      "status": "pass",
+      "summary": "Explicit-source precedence stayed backward compatible: sqlite beat creds file, and creds file beat bare REFRESH_TOKEN.",
+      "evidence": [
+        "discovery-architecture/startup-auth-shell/group-fixtures/VAL-STARTUP-011/sqlite-over-creds-startup.log",
+        "discovery-architecture/startup-auth-shell/group-fixtures/VAL-STARTUP-011/sqlite-over-creds-health-curl.txt",
+        "discovery-architecture/startup-auth-shell/group-fixtures/VAL-STARTUP-011/file-over-token-startup.log",
+        "discovery-architecture/startup-auth-shell/group-fixtures/VAL-STARTUP-011/file-over-token-health-curl.txt",
+        "discovery-architecture/startup-auth-shell/group-fixtures/VAL-STARTUP-011/result.json"
+      ]
+    },
+    {
+      "id": "VAL-STARTUP-008",
+      "status": "pass",
+      "summary": "Neither failure-path nor success/fallback startup logs exposed the literal fixture secrets used in credential inputs.",
+      "evidence": [
+        "discovery-architecture/startup-auth-shell/group-fixtures/VAL-STARTUP-008/failure-startup.log",
+        "discovery-architecture/startup-auth-shell/group-fixtures/VAL-STARTUP-008/failure-health-curl.txt",
+        "discovery-architecture/startup-auth-shell/group-fixtures/VAL-STARTUP-010/startup.log",
+        "discovery-architecture/startup-auth-shell/group-fixtures/VAL-STARTUP-008/secret-scan.json"
+      ]
+    }
+  ],
+  "toolsUsed": [
+    "shell",
+    "curl"
+  ],
+  "frictions": [],
+  "blockers": [],
+  "setupNotes": [
+    "Built a dedicated giro binary inside the assigned evidence directory for repeatable local startup checks.",
+    "Used a fresh temp HOME under the assigned evidence directory for each scenario to isolate autodetected kiro-cli and kiro-ide paths.",
+    "Verified 127.0.0.1:8080 was free before each startup and terminated each giro process before moving to the next scenario."
+  ]
+}

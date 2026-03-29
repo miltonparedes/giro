@@ -1,0 +1,64 @@
+{
+  "groupId": "startup-live-sources",
+  "surface": "startup-auth-shell",
+  "assertions": [
+    {
+      "id": "VAL-STARTUP-002",
+      "status": "pass",
+      "summary": "Each cited successful live startup emitted exactly one winning source/path log and served /health.",
+      "evidence": [
+        "discovery-architecture/startup-auth-shell/group-live/VAL-STARTUP-002/source-log-summary.json",
+        "discovery-architecture/startup-auth-shell/group-live/VAL-STARTUP-004/startup.log",
+        "discovery-architecture/startup-auth-shell/group-live/VAL-STARTUP-004/health-curl.txt",
+        "discovery-architecture/startup-auth-shell/group-live/VAL-STARTUP-005/startup.log",
+        "discovery-architecture/startup-auth-shell/group-live/VAL-STARTUP-005/health-curl.txt",
+        "discovery-architecture/startup-auth-shell/group-live/VAL-STARTUP-012/startup.log",
+        "discovery-architecture/startup-auth-shell/group-live/VAL-STARTUP-012/health-curl.txt"
+      ]
+    },
+    {
+      "id": "VAL-STARTUP-004",
+      "status": "pass",
+      "summary": "Autodetected default kiro-cli store started successfully and served an authenticated /v1/models request in the same run.",
+      "evidence": [
+        "discovery-architecture/startup-auth-shell/group-live/VAL-STARTUP-004/startup.log",
+        "discovery-architecture/startup-auth-shell/group-live/VAL-STARTUP-004/health-curl.txt",
+        "discovery-architecture/startup-auth-shell/group-live/VAL-STARTUP-004/models-curl.txt",
+        "discovery-architecture/startup-auth-shell/group-live/VAL-STARTUP-004/result.json"
+      ]
+    },
+    {
+      "id": "VAL-STARTUP-005",
+      "status": "pass",
+      "summary": "With no usable kiro-cli store present, the default kiro-ide credentials file started successfully and served an authenticated /v1/models request.",
+      "evidence": [
+        "discovery-architecture/startup-auth-shell/group-live/VAL-STARTUP-005/startup.log",
+        "discovery-architecture/startup-auth-shell/group-live/VAL-STARTUP-005/health-curl.txt",
+        "discovery-architecture/startup-auth-shell/group-live/VAL-STARTUP-005/models-curl.txt",
+        "discovery-architecture/startup-auth-shell/group-live/VAL-STARTUP-005/result.json"
+      ]
+    },
+    {
+      "id": "VAL-STARTUP-012",
+      "status": "pass",
+      "summary": "Enterprise-style kiro-ide autodetection loaded companion registration material and served an authenticated /v1/models request.",
+      "evidence": [
+        "discovery-architecture/startup-auth-shell/group-live/VAL-STARTUP-012/startup.log",
+        "discovery-architecture/startup-auth-shell/group-live/VAL-STARTUP-012/health-curl.txt",
+        "discovery-architecture/startup-auth-shell/group-live/VAL-STARTUP-012/models-curl.txt",
+        "discovery-architecture/startup-auth-shell/group-live/VAL-STARTUP-012/result.json"
+      ]
+    }
+  ],
+  "toolsUsed": [
+    "shell",
+    "curl"
+  ],
+  "frictions": [],
+  "blockers": [],
+  "setupNotes": [
+    "Used one local giro process at a time on 127.0.0.1:8080 and confirmed the port was free between runs.",
+    "Derived ephemeral runtime fixtures from the real local kiro-cli sqlite store, kept them under the assigned evidence directory runtime area, and deleted them before finishing.",
+    "Captured sanitized startup logs plus /health and authenticated /v1/models curl transcripts for each live-source run."
+  ]
+}

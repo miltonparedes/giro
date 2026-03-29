@@ -1,0 +1,34 @@
+{
+  "milestone": "discovery-architecture",
+  "round": 1,
+  "status": "pass",
+  "assertionsSummary": {
+    "total": 11,
+    "passed": 11,
+    "failed": 0,
+    "blocked": 0
+  },
+  "passedAssertions": [
+    "VAL-STARTUP-001",
+    "VAL-STARTUP-002",
+    "VAL-STARTUP-003",
+    "VAL-STARTUP-004",
+    "VAL-STARTUP-005",
+    "VAL-STARTUP-006",
+    "VAL-STARTUP-007",
+    "VAL-STARTUP-008",
+    "VAL-STARTUP-010",
+    "VAL-STARTUP-011",
+    "VAL-STARTUP-012"
+  ],
+  "failedAssertions": [],
+  "blockedAssertions": [],
+  "appliedUpdates": [
+    {
+      "target": "user-testing.md",
+      "description": "Added shell startup/auth flow-validator isolation guidance for the fixed 127.0.0.1:8080 surface, temp HOME fixtures, evidence capture, and secret-safe handling.",
+      "source": "setup"
+    }
+  ],
+  "previousRound": null
+}
