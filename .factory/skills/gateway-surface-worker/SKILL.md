@@ -22,6 +22,7 @@ None.
    - Prefer handler/integration tests for protocol contracts.
    - Add e2e or local-validation assets when the feature is about same-run or real-flow coverage.
    - Keep stream assertions explicit about framing and terminal events.
+   - If the feature is primarily assurance/coverage for behavior that already works, record that as a justified exception in the handoff instead of claiming pure red→green TDD compliance.
 3. Implement the smallest change that preserves or restores the client-facing protocol contract.
    - Do not move credential discovery into handlers.
    - Preserve local auth/error shapes for OpenAI and Anthropic separately.
