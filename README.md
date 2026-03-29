@@ -41,16 +41,20 @@ Or grab a binary from the [releases page](https://github.com/miltonparedes/giro/
 ## Quick start
 
 ```sh
-# 1 — Set credentials (pick one method)
-export KIRO_CLI_DB_FILE="~/Library/Application Support/kiro-cli/data.sqlite3"  # macOS
-export KIRO_CLI_DB_FILE="~/.local/share/kiro-cli/data.sqlite3"                 # Linux
-# or: export KIRO_CREDS_FILE="path/to/credentials.json"
-# or: export REFRESH_TOKEN="your-token"
-
-# 2 — Start it
+# 1 — Start it
 just dev          # or: go run ./cmd/giro
 
-# 3 — Check it's alive
+# giro now autodetects default local Kiro stores when available:
+# - kiro-cli SQLite DB
+# - kiro-ide credentials file
+#
+# Optional explicit overrides still win:
+# export KIRO_CLI_DB_FILE="~/Library/Application Support/kiro-cli/data.sqlite3"  # macOS
+# export KIRO_CLI_DB_FILE="~/.local/share/kiro-cli/data.sqlite3"                 # Linux
+# export KIRO_CREDS_FILE="path/to/credentials.json"
+# export REFRESH_TOKEN="your-token"
+
+# 2 — Check it's alive
 curl localhost:8080/health
 ```
 
@@ -174,7 +178,9 @@ curl http://localhost:8080/v1/messages \
 
 - Speaks **both** OpenAI and Anthropic protocols simultaneously
 - Streaming (SSE), tool calling, and vision support
+- Secure autodetection of local `kiro-cli` and `kiro-ide` credentials
 - Automatic token refresh — you authenticate once, giro keeps it alive
+- Explicit env configuration still overrides autodetection when you want to pin a source
 - Model name normalization — use friendly names like `claude-sonnet-4`
 
 ## Authentication
@@ -186,10 +192,19 @@ giro handles two auth layers:
 
 ### Kiro credentials
 
-You need an active [Kiro](https://kiro.dev) session. Pick one:
+You need an active [Kiro](https://kiro.dev) session. giro now tries the easiest path first:
+
+1. explicit env-backed sources if you set them
+2. autodetected default `kiro-cli` store
+3. autodetected default `kiro-ide` store
+
+So in many setups you can just run `just dev` with no credential env vars at all.
+
+If you want to override autodetection, pick one:
 
 | Method | How |
 |---|---|
+| **Autodetect** (default) | Start giro normally and let it discover the default local `kiro-cli` / `kiro-ide` store on your machine. |
 | **Kiro CLI database** (easiest) | Set `KIRO_CLI_DB_FILE` to your Kiro SQLite DB path. Tokens refresh automatically. |
 | **Credentials file** | Set `KIRO_CREDS_FILE` to a JSON file with `refreshToken`, `accessToken`, `profileArn`, etc. |
 | **Direct token** | Set `REFRESH_TOKEN` (and optionally `PROFILE_ARN`). Quick but not persisted across restarts. |
@@ -253,6 +268,7 @@ Clients send this as `Authorization: Bearer <key>` (OpenAI) or `x-api-key: <key>
 just build      # → bin/giro
 just test       # tests with race detection
 just check      # fmt + lint + test (run before committing)
+just validate   # boots local giro and runs the full live validation matrix
 just cover      # tests with coverage report → coverage.html
 ```
 
