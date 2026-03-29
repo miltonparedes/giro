@@ -637,6 +637,202 @@ func assertAnthropicStreamToolUseLifecycle(t *testing.T, events []anthropicSSEEv
 	}
 }
 
+// VAL-ANTHROPIC-009: Anthropic base64 vision inputs produce image-grounded responses.
+func TestAnthropicHandler_Messages_NonStream_Vision(t *testing.T) {
+	var receivedImages bool
+	kiro := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var payload map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&payload); err == nil {
+			convState, _ := payload["conversationState"].(map[string]any)
+			cm, _ := convState["currentMessage"].(map[string]any)
+			ui, _ := cm["userInputMessage"].(map[string]any)
+			if imgs, ok := ui["images"].([]any); ok && len(imgs) > 0 {
+				receivedImages = true
+				img0, _ := imgs[0].(map[string]any)
+				if img0["format"] != "jpeg" {
+					t.Errorf("kiro payload image format = %v, want jpeg", img0["format"])
+				}
+				source, _ := img0["source"].(map[string]any)
+				if source["bytes"] != "/9j/4AAQSkZJRgABAQtest" {
+					t.Errorf("kiro payload image data mismatch")
+				}
+			}
+		}
+		w.WriteHeader(http.StatusOK)
+		_, _ = fmt.Fprint(w, `{"content":"I can see a photograph in the image."}`)
+	}))
+	defer kiro.Close()
+
+	h := NewAnthropicHandler(
+		newTestAuthManager(t, kiro.URL, kiro.URL),
+		newTestResolver("claude-sonnet-4"),
+		newTestHTTPClient(),
+		testHandlerConfig(),
+	)
+
+	// Anthropic vision request with base64 image block.
+	body := `{
+		"model": "claude-sonnet-4",
+		"max_tokens": 64,
+		"messages": [{
+			"role": "user",
+			"content": [
+				{"type": "text", "text": "What do you see in this image?"},
+				{
+					"type": "image",
+					"source": {
+						"type": "base64",
+						"media_type": "image/jpeg",
+						"data": "/9j/4AAQSkZJRgABAQtest"
+					}
+				}
+			]
+		}],
+		"stream": false
+	}`
+	req := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(body))
+	rr := httptest.NewRecorder()
+	h.Messages(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body=%s", rr.Code, http.StatusOK, rr.Body.String())
+	}
+	if !receivedImages {
+		t.Fatal("kiro mock did not receive images in the request payload")
+	}
+
+	resp := assertAnthropicMessageShape(t, rr.Body.Bytes())
+	content, _ := resp["content"].([]any)
+	if len(content) == 0 {
+		t.Fatal("content array is empty")
+	}
+	block := content[0].(map[string]any)
+	text, _ := block["text"].(string)
+	if text == "" {
+		t.Fatal("response text is empty")
+	}
+	if !strings.Contains(text, "image") {
+		t.Fatalf("response text = %q, expected image-grounded answer", text)
+	}
+}
+
+// VAL-ANTHROPIC-009: Anthropic base64 vision inputs work in streaming mode.
+func TestAnthropicHandler_Messages_Stream_Vision(t *testing.T) {
+	var receivedImages bool
+	kiro := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var payload map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&payload); err == nil {
+			convState, _ := payload["conversationState"].(map[string]any)
+			cm, _ := convState["currentMessage"].(map[string]any)
+			ui, _ := cm["userInputMessage"].(map[string]any)
+			if imgs, ok := ui["images"].([]any); ok && len(imgs) > 0 {
+				receivedImages = true
+			}
+		}
+		w.WriteHeader(http.StatusOK)
+		_, _ = fmt.Fprint(w, `{"content":"The image shows a small red pixel."}`)
+	}))
+	defer kiro.Close()
+
+	h := NewAnthropicHandler(
+		newTestAuthManager(t, kiro.URL, kiro.URL),
+		newTestResolver("claude-sonnet-4"),
+		newTestHTTPClient(),
+		testHandlerConfig(),
+	)
+
+	body := `{
+		"model": "claude-sonnet-4",
+		"max_tokens": 64,
+		"messages": [{
+			"role": "user",
+			"content": [
+				{"type": "text", "text": "Describe this image."},
+				{
+					"type": "image",
+					"source": {
+						"type": "base64",
+						"media_type": "image/png",
+						"data": "iVBORw0KGgoAAAANSUhEUg=="
+					}
+				}
+			]
+		}],
+		"stream": true
+	}`
+	req := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(body))
+	rr := httptest.NewRecorder()
+	h.Messages(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", rr.Code, http.StatusOK)
+	}
+	if !receivedImages {
+		t.Fatal("kiro mock did not receive images in the streaming request payload")
+	}
+	if got := rr.Header().Get("Content-Type"); got != "text/event-stream" {
+		t.Fatalf("Content-Type = %q, want text/event-stream", got)
+	}
+
+	events := parseAnthropicSSEEvents(t, rr.Body.String())
+	assertAnthropicSSELifecycle(t, events)
+}
+
+// VAL-ANTHROPIC-009: Anthropic vision with history images preserves images in Kiro history.
+func TestAnthropicHandler_Messages_Vision_History(t *testing.T) {
+	var receivedHistoryImages bool
+	kiro := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var payload map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&payload); err == nil {
+			convState, _ := payload["conversationState"].(map[string]any)
+			if hist, ok := convState["history"].([]any); ok {
+				for _, h := range hist {
+					hm, _ := h.(map[string]any)
+					if ui, ok := hm["userInputMessage"].(map[string]any); ok {
+						if imgs, ok := ui["images"].([]any); ok && len(imgs) > 0 {
+							receivedHistoryImages = true
+						}
+					}
+				}
+			}
+		}
+		w.WriteHeader(http.StatusOK)
+		_, _ = fmt.Fprint(w, `{"content":"That was the image from before."}`)
+	}))
+	defer kiro.Close()
+
+	h := NewAnthropicHandler(
+		newTestAuthManager(t, kiro.URL, kiro.URL),
+		newTestResolver("claude-sonnet-4"),
+		newTestHTTPClient(),
+		testHandlerConfig(),
+	)
+
+	body := `{
+		"model": "claude-sonnet-4",
+		"max_tokens": 64,
+		"messages": [
+			{"role": "user", "content": [
+				{"type": "text", "text": "What is this?"},
+				{"type": "image", "source": {"type": "base64", "media_type": "image/png", "data": "iVBOR"}}
+			]},
+			{"role": "assistant", "content": [{"type": "text", "text": "It's a small image."}]},
+			{"role": "user", "content": "Tell me more about that image."}
+		],
+		"stream": false
+	}`
+	req := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(body))
+	rr := httptest.NewRecorder()
+	h.Messages(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body=%s", rr.Code, http.StatusOK, rr.Body.String())
+	}
+	if !receivedHistoryImages {
+		t.Fatal("kiro mock did not receive history images in the request payload")
+	}
+}
+
 // assertToolUseSSEEvent checks a single SSE event against tool-use expectations.
 func assertToolUseSSEEvent(
 	t *testing.T, evt anthropicSSEEvent, toolName, inputSubstring string,

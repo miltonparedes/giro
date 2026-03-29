@@ -177,4 +177,82 @@ func TestE2EMock_OpenAIAndAnthropic(t *testing.T) {
 			t.Fatalf("missing message_stop event in stream body: %s", string(respBody))
 		}
 	})
+
+	// VAL-OPENAI-008: OpenAI base64 vision via e2e mock.
+	t.Run("openai vision non-stream", func(t *testing.T) {
+		body := `{
+			"model": "claude-sonnet-4",
+			"messages": [{
+				"role": "user",
+				"content": [
+					{"type": "text", "text": "What is in this image?"},
+					{"type": "image_url", "image_url": {"url": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUg=="}}
+				]
+			}],
+			"stream": false
+		}`
+		req, err := http.NewRequest(http.MethodPost, gateway.URL+"/v1/chat/completions", strings.NewReader(body))
+		if err != nil {
+			t.Fatalf("new request: %v", err)
+		}
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Authorization", "Bearer e2e-key")
+
+		resp, err := client.Do(req)
+		if err != nil {
+			t.Fatalf("do request: %v", err)
+		}
+		defer func() { _ = resp.Body.Close() }()
+
+		respBody, _ := io.ReadAll(resp.Body)
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("status = %d, want %d, body=%s", resp.StatusCode, http.StatusOK, string(respBody))
+		}
+		if !strings.Contains(string(respBody), `"choices"`) {
+			t.Fatalf("unexpected body: %s", string(respBody))
+		}
+	})
+
+	// VAL-ANTHROPIC-009: Anthropic base64 vision via e2e mock.
+	t.Run("anthropic vision non-stream", func(t *testing.T) {
+		body := `{
+			"model": "claude-sonnet-4",
+			"max_tokens": 64,
+			"messages": [{
+				"role": "user",
+				"content": [
+					{"type": "text", "text": "What is in this image?"},
+					{
+						"type": "image",
+						"source": {
+							"type": "base64",
+							"media_type": "image/jpeg",
+							"data": "/9j/4AAQSkZJRgABAQtest"
+						}
+					}
+				]
+			}],
+			"stream": false
+		}`
+		req, err := http.NewRequest(http.MethodPost, gateway.URL+"/v1/messages", strings.NewReader(body))
+		if err != nil {
+			t.Fatalf("new request: %v", err)
+		}
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("x-api-key", "e2e-key")
+
+		resp, err := client.Do(req)
+		if err != nil {
+			t.Fatalf("do request: %v", err)
+		}
+		defer func() { _ = resp.Body.Close() }()
+
+		respBody, _ := io.ReadAll(resp.Body)
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("status = %d, want %d, body=%s", resp.StatusCode, http.StatusOK, string(respBody))
+		}
+		if !strings.Contains(string(respBody), `"type":"message"`) {
+			t.Fatalf("unexpected body: %s", string(respBody))
+		}
+	})
 }
