@@ -1,7 +1,7 @@
 {
   "milestone": "validation-readiness",
-  "round": 1,
-  "status": "fail",
+  "round": 2,
+  "status": "pass",
   "validatorsRun": {
     "test": {
       "passed": true,
@@ -21,26 +21,13 @@
   },
   "reviewsSummary": {
     "total": 1,
-    "passed": 0,
-    "failed": 1,
-    "failedFeatures": [
-      "local-real-validation-matrix"
-    ]
+    "passed": 1,
+    "failed": 0,
+    "failedFeatures": []
   },
-  "blockingIssues": [
-    {
-      "featureId": "local-real-validation-matrix",
-      "severity": "blocking",
-      "description": "The committed validation assets only add mock-backed `httptest` coverage in `internal/server/cross_area_test.go` and `test/e2e/cross_area_test.go` instead of a repeatable repo-side live validation asset that drives a booted `giro` process on `127.0.0.1:8080` through the full matrix from one resolved credential source."
-    }
-  ],
+  "blockingIssues": [],
   "appliedUpdates": [],
   "suggestedGuidanceUpdates": [],
-  "rejectedObservations": [
-    {
-      "observation": "The shared validation notes do not preserve the concrete request payloads/transcripts needed to rerun the advanced local matrix without reconstructing ad hoc curl commands from a worker transcript.",
-      "reason": "This is downstream of the blocking feature bug: the missing reusable live validation asset should be fixed in repo-side code/assets first, and adding documentation-only payload notes now would be partial and outside this scrutiny run's scope."
-    }
-  ],
-  "previousRound": null
+  "rejectedObservations": [],
+  "previousRound": ".factory/validation/validation-readiness/scrutiny/synthesis.round1.json"
 }

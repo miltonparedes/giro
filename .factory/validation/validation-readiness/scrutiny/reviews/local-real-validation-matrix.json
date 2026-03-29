@@ -1,28 +1,22 @@
 {
   "featureId": "local-real-validation-matrix",
-  "reviewedAt": "2026-03-29T17:00:52-06:00",
-  "commitId": "5073c2e",
+  "reviewedAt": "2026-03-29T17:17:59-06:00",
+  "commitId": "6a8f159",
   "transcriptSkeletonReviewed": true,
   "diffReviewed": true,
-  "status": "fail",
+  "status": "pass",
   "codeReview": {
-    "summary": "Fail. The commit adds useful mock-backed coverage for the cross-area contracts, but it does not actually add a repeatable local-real validation asset for a booted `giro` process on `127.0.0.1:8080` tied to one resolved credential source. Both new files stand up in-process test servers with mock upstreams instead of exercising the live local service path the feature description requires.",
+    "summary": "Pass. The fix directly addresses the prior scrutiny failure by adding a committed live runner at `test/live/validate_matrix.sh`, exposing it through `just validate` and `.factory/services.yaml`, and driving the required cross-area matrix against one freshly booted `giro` process on `127.0.0.1:8080`. Unlike the original failed implementation, the new asset boots the real local service once, reuses the same process lifetime for OpenAI and Anthropic traffic, and can target either the explicit local SQLite source or autodetection.",
     "issues": [
       {
-        "file": "/var/home/milton/Workspaces/M/giro/test/e2e/cross_area_test.go",
-        "line": 59,
-        "severity": "blocking",
-        "description": "`TestCrossAreaMatrix` explicitly runs against a 'mock-backed server instance' and creates both the Kiro upstream and gateway with `httptest.NewServer`, while the companion server tests do the same via `newCrossAreaRouter` and `newTestAuthManagerWithUpstream` in `internal/server/cross_area_test.go`. That means the committed assets never target a locally booted `giro` process on `127.0.0.1:8080`, never verify startup composition or the selected resolved credential source, and cannot be rerun as the repeatable local-real matrix promised by the feature. Add a real local validation runner/asset that drives the existing service manifest or approved boot command against the live process and captures the full matrix from one process lifetime."
+        "file": "/var/home/milton/Workspaces/M/giro/test/live/validate_matrix.sh",
+        "line": 373,
+        "severity": "non_blocking",
+        "description": "The live vision check passes on any Anthropic `type:\"message\"` response and does not assert that the answer is actually image-grounded. That means a regression where the upstream accepts the request but ignores the image payload could still pass this runner. Tightening `test_vision` to require a color-grounded response would make the live asset match the validation contract more closely."
       }
     ]
   },
-  "sharedStateObservations": [
-    {
-      "area": "knowledge",
-      "observation": "The shared validation notes record the required matrix and boot commands, but they still do not preserve the concrete request payloads/transcripts needed to rerun the advanced local matrix (tool use, vision, cross-protocol same-run) without reconstructing them from a worker transcript.",
-      "evidence": "`/var/home/milton/Workspaces/M/giro/.factory/library/user-testing.md:18-40` lists the required matrix and boot commands, but the reusable asset added in this feature is only the mock-backed `test/e2e/cross_area_test.go:59-100`. The worker transcript for session `0143b1de-d656-4729-b023-387c1848dae1` shows several ad hoc curl commands for the live matrix, and none of those payloads were committed as a reusable repo-side asset."
-    }
-  ],
-  "addressesFailureFrom": null,
-  "summary": "Review failed: the feature adds mock-backed cross-area tests, but it does not commit a repeatable live local validation asset for the real `127.0.0.1:8080` matrix tied to one resolved credential source."
+  "sharedStateObservations": [],
+  "addressesFailureFrom": "/var/home/milton/Workspaces/M/giro/.factory/validation/validation-readiness/scrutiny/reviews/local-real-validation-matrix.round1.json",
+  "summary": "Review passed: commit `6a8f159` fixes the original blocking gap by committing a reusable live local validation runner for the full matrix on `127.0.0.1:8080` in one process lifetime. The only remaining issue is non-blocking: the vision assertion checks the Anthropic envelope but not the image-grounded content itself."
 }
