@@ -1,0 +1,7 @@
+{
+  "featureId": "loadable-source-validation-and-fallback-fix",
+  "status": "pass",
+  "summary": "Pass: the fix commit validates explicit and autodetected SQLite/JSON credential sources for actual loadability before selection, falls through to the next viable candidate when a higher-priority file-backed source is malformed, and still fails closed during startup when resolution finds no usable source.",
+  "issues": [],
+  "sharedStateObservations": []
+}

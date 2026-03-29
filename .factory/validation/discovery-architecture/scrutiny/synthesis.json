@@ -1,51 +1,31 @@
 {
   "milestone": "discovery-architecture",
-  "round": 1,
-  "status": "fail",
+  "round": 2,
+  "status": "pass",
   "validatorsRun": {
     "test": {
       "passed": true,
-      "command": "cd \"/var/home/milton/Workspaces/M/giro\" && go test -race -count=1 -p 16 ./...",
+      "command": "go test -race -count=1 -p 16 ./...",
       "exitCode": 0
     },
     "typecheck": {
       "passed": true,
-      "command": "cd \"/var/home/milton/Workspaces/M/giro\" && go test -run '^$' -p 16 ./...",
+      "command": "go test -run '^$' -p 16 ./...",
       "exitCode": 0
     },
     "lint": {
       "passed": true,
-      "command": "cd \"/var/home/milton/Workspaces/M/giro\" && golangci-lint run",
+      "command": "golangci-lint run",
       "exitCode": 0
     }
   },
   "reviewsSummary": {
-    "total": 3,
-    "passed": 0,
-    "failed": 3,
-    "failedFeatures": [
-      "credential-resolution-foundation",
-      "env-and-kiro-cli-source-selection",
-      "kiro-ide-autodetection-and-fallbacks"
-    ]
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "failedFeatures": []
   },
-  "blockingIssues": [
-    {
-      "featureId": "credential-resolution-foundation",
-      "severity": "blocking",
-      "description": "The resolver selects explicit file-backed sources without validating that the path is readable and loadable, so startup can proceed without a usable credential source instead of failing closed or falling back."
-    },
-    {
-      "featureId": "env-and-kiro-cli-source-selection",
-      "severity": "blocking",
-      "description": "Resolution still accepts malformed-but-existing explicit or autodetected stores because candidate validation only checks filesystem existence, which breaks the required fallback and fail-closed behavior."
-    },
-    {
-      "featureId": "kiro-ide-autodetection-and-fallbacks",
-      "severity": "blocking",
-      "description": "Autodetected fallback only rejects missing or non-regular files; a malformed but existing kiro-cli store can still win over a healthy kiro-ide store."
-    }
-  ],
+  "blockingIssues": [],
   "appliedUpdates": [],
   "suggestedGuidanceUpdates": [
     {
@@ -61,11 +41,6 @@
       "isSystemic": true
     }
   ],
-  "rejectedObservations": [
-    {
-      "observation": "The `kiro-ide-autodetection-and-fallbacks` review separately reported the missing local startup smoke run.",
-      "reason": "duplicate"
-    }
-  ],
-  "previousRound": null
+  "rejectedObservations": [],
+  "previousRound": ".factory/validation/discovery-architecture/scrutiny/synthesis.round1.json"
 }
