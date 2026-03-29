@@ -558,6 +558,186 @@ func TestOpenAIHandler_ChatCompletions_Stream_ToolCalls(t *testing.T) {
 	assertStreamToolCallChunk(t, chunks)
 }
 
+// VAL-OPENAI-008: OpenAI base64 vision inputs produce image-grounded responses.
+func TestOpenAIHandler_ChatCompletions_NonStream_Vision(t *testing.T) {
+	var receivedImages bool
+	kiro := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Decode request to verify images are present in the Kiro payload.
+		var payload map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&payload); err == nil {
+			convState, _ := payload["conversationState"].(map[string]any)
+			cm, _ := convState["currentMessage"].(map[string]any)
+			ui, _ := cm["userInputMessage"].(map[string]any)
+			if imgs, ok := ui["images"].([]any); ok && len(imgs) > 0 {
+				receivedImages = true
+				img0, _ := imgs[0].(map[string]any)
+				if img0["format"] != "png" {
+					t.Errorf("kiro payload image format = %v, want png", img0["format"])
+				}
+				source, _ := img0["source"].(map[string]any)
+				if source["bytes"] != "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==" {
+					t.Errorf("kiro payload image data mismatch")
+				}
+			}
+		}
+		w.WriteHeader(http.StatusOK)
+		_, _ = fmt.Fprint(w, `{"content":"I can see a small red square in the image."}`)
+	}))
+	defer kiro.Close()
+
+	h := NewOpenAIHandler(
+		newTestAuthManager(t, kiro.URL, kiro.URL),
+		newTestResolver("claude-sonnet-4"),
+		newTestHTTPClient(),
+		testHandlerConfig(),
+	)
+
+	// OpenAI vision request with base64 data URL image.
+	body := `{
+		"model": "claude-sonnet-4",
+		"messages": [{
+			"role": "user",
+			"content": [
+				{"type": "text", "text": "What do you see in this image?"},
+				{"type": "image_url", "image_url": {"url": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg=="}}
+			]
+		}],
+		"stream": false
+	}`
+	req := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(body))
+	rr := httptest.NewRecorder()
+	h.ChatCompletions(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body=%s", rr.Code, http.StatusOK, rr.Body.String())
+	}
+	if !receivedImages {
+		t.Fatal("kiro mock did not receive images in the request payload")
+	}
+
+	resp := assertOpenAICompletionShape(t, rr.Body.Bytes())
+	choice := resp["choices"].([]any)[0].(map[string]any)
+	content, _ := choice["message"].(map[string]any)["content"].(string)
+	if content == "" {
+		t.Fatal("response content is empty")
+	}
+	if !strings.Contains(content, "image") {
+		t.Fatalf("response content = %q, expected image-grounded answer", content)
+	}
+}
+
+// VAL-OPENAI-008: OpenAI base64 vision inputs work in streaming mode.
+func TestOpenAIHandler_ChatCompletions_Stream_Vision(t *testing.T) {
+	var receivedImages bool
+	kiro := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var payload map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&payload); err == nil {
+			convState, _ := payload["conversationState"].(map[string]any)
+			cm, _ := convState["currentMessage"].(map[string]any)
+			ui, _ := cm["userInputMessage"].(map[string]any)
+			if imgs, ok := ui["images"].([]any); ok && len(imgs) > 0 {
+				receivedImages = true
+			}
+		}
+		w.WriteHeader(http.StatusOK)
+		_, _ = fmt.Fprint(w, `{"content":"I see a red pixel in this image."}`)
+	}))
+	defer kiro.Close()
+
+	h := NewOpenAIHandler(
+		newTestAuthManager(t, kiro.URL, kiro.URL),
+		newTestResolver("claude-sonnet-4"),
+		newTestHTTPClient(),
+		testHandlerConfig(),
+	)
+
+	body := `{
+		"model": "claude-sonnet-4",
+		"messages": [{
+			"role": "user",
+			"content": [
+				{"type": "text", "text": "Describe the image."},
+				{"type": "image_url", "image_url": {"url": "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQ=="}}
+			]
+		}],
+		"stream": true
+	}`
+	req := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(body))
+	rr := httptest.NewRecorder()
+	h.ChatCompletions(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", rr.Code, http.StatusOK)
+	}
+	if !receivedImages {
+		t.Fatal("kiro mock did not receive images in the streaming request payload")
+	}
+	if got := rr.Header().Get("Content-Type"); got != "text/event-stream" {
+		t.Fatalf("Content-Type = %q, want text/event-stream", got)
+	}
+	resp := rr.Body.String()
+	if !strings.Contains(resp, "data: [DONE]") {
+		t.Fatal("stream missing [DONE] terminator")
+	}
+	if !strings.Contains(resp, "image") {
+		t.Fatal("stream response should contain image-grounded content")
+	}
+}
+
+// VAL-OPENAI-008: OpenAI vision with history images preserves images in Kiro history.
+func TestOpenAIHandler_ChatCompletions_Vision_History(t *testing.T) {
+	var receivedHistoryImages bool
+	kiro := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var payload map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&payload); err == nil {
+			convState, _ := payload["conversationState"].(map[string]any)
+			if hist, ok := convState["history"].([]any); ok {
+				for _, h := range hist {
+					hm, _ := h.(map[string]any)
+					if ui, ok := hm["userInputMessage"].(map[string]any); ok {
+						if imgs, ok := ui["images"].([]any); ok && len(imgs) > 0 {
+							receivedHistoryImages = true
+						}
+					}
+				}
+			}
+		}
+		w.WriteHeader(http.StatusOK)
+		_, _ = fmt.Fprint(w, `{"content":"That was the red pixel image."}`)
+	}))
+	defer kiro.Close()
+
+	h := NewOpenAIHandler(
+		newTestAuthManager(t, kiro.URL, kiro.URL),
+		newTestResolver("claude-sonnet-4"),
+		newTestHTTPClient(),
+		testHandlerConfig(),
+	)
+
+	body := `{
+		"model": "claude-sonnet-4",
+		"messages": [
+			{"role": "user", "content": [
+				{"type": "text", "text": "What is this?"},
+				{"type": "image_url", "image_url": {"url": "data:image/png;base64,iVBOR"}}
+			]},
+			{"role": "assistant", "content": "It's a small image."},
+			{"role": "user", "content": "Tell me more about that image."}
+		],
+		"stream": false
+	}`
+	req := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(body))
+	rr := httptest.NewRecorder()
+	h.ChatCompletions(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body=%s", rr.Code, http.StatusOK, rr.Body.String())
+	}
+	if !receivedHistoryImages {
+		t.Fatal("kiro mock did not receive history images in the request payload")
+	}
+}
+
 // assertStreamToolCallChunk finds and validates the tool_calls delta chunk in SSE output.
 func assertStreamToolCallChunk(t *testing.T, chunks []sseChunk) {
 	t.Helper()
