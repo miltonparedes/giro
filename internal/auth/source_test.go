@@ -2,6 +2,8 @@ package auth
 
 import (
 	"bytes"
+	"database/sql"
+	"encoding/json"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -27,11 +29,68 @@ func createTempFile(t *testing.T, dir, relPath string) string {
 	return path
 }
 
+// createValidSQLiteFile creates a real SQLite database with an auth_kv table
+// and one usable token entry at the given relative path inside dir. Parent
+// directories are created as needed. Returns the absolute path.
+func createValidSQLiteFile(t *testing.T, dir, relPath string) string {
+	t.Helper()
+	path := filepath.Join(dir, relPath)
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	db, err := sql.Open("sqlite", path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = db.Close() }()
+
+	if _, err := db.Exec("CREATE TABLE auth_kv (key TEXT PRIMARY KEY, value TEXT)"); err != nil {
+		t.Fatal(err)
+	}
+
+	tokenData, err := json.Marshal(map[string]string{
+		"access_token":  "fixture-access",
+		"refresh_token": "fixture-refresh",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := db.Exec(
+		"INSERT INTO auth_kv (key, value) VALUES (?, ?)",
+		"kirocli:social:token", string(tokenData),
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	return path
+}
+
+// createValidJSONCredsFile creates a JSON credentials file containing at
+// least a refreshToken at the given relative path inside dir. Parent
+// directories are created as needed. Returns the absolute path.
+func createValidJSONCredsFile(t *testing.T, dir, relPath string) string {
+	t.Helper()
+	path := filepath.Join(dir, relPath)
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	content := `{"refreshToken":"fixture-refresh","accessToken":"fixture-access"}`
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	return path
+}
+
 // createTempKiroCLIStore creates the platform-default kiro-cli SQLite file
-// under the given home directory. Returns the full path.
+// under the given home directory with a valid auth_kv table and token entry.
+// Returns the full path.
 func createTempKiroCLIStore(t *testing.T, homeDir string) string {
 	t.Helper()
-	return createTempFile(t, homeDir, defaultKiroCLIDBRelPath())
+	return createValidSQLiteFile(t, homeDir, defaultKiroCLIDBRelPath())
 }
 
 // defaultKiroCLIDBRelPath returns the relative path to the kiro-cli store
@@ -50,11 +109,11 @@ func kiroIDECredsRelPath() string {
 }
 
 // createTempKiroIDEStore creates the platform-default kiro-ide credentials
-// file under the given home directory with minimal valid JSON. Returns the
+// file under the given home directory with a valid refreshToken. Returns the
 // full path.
 func createTempKiroIDEStore(t *testing.T, homeDir string) string {
 	t.Helper()
-	return createTempFile(t, homeDir, kiroIDECredsRelPath())
+	return createValidJSONCredsFile(t, homeDir, kiroIDECredsRelPath())
 }
 
 // createTempKiroIDEStoreWithContent creates the kiro-ide credentials file
@@ -76,8 +135,8 @@ func createTempKiroIDEStoreWithContent(t *testing.T, homeDir, content string) st
 
 func TestResolveSource_Precedence_SQLiteWins(t *testing.T) {
 	dir := t.TempDir()
-	sqlitePath := createTempFile(t, dir, "cli.sqlite3")
-	credsPath := createTempFile(t, dir, "creds.json")
+	sqlitePath := createValidSQLiteFile(t, dir, "cli.sqlite3")
+	credsPath := createValidJSONCredsFile(t, dir, "creds.json")
 
 	in := ResolveInput{
 		KiroCLIDBFile: sqlitePath,
@@ -104,7 +163,7 @@ func TestResolveSource_Precedence_SQLiteWins(t *testing.T) {
 
 func TestResolveSource_Precedence_CredsFileOverToken(t *testing.T) {
 	dir := t.TempDir()
-	credsPath := createTempFile(t, dir, "creds.json")
+	credsPath := createValidJSONCredsFile(t, dir, "creds.json")
 
 	in := ResolveInput{
 		KiroCredsFile: credsPath,
@@ -448,7 +507,7 @@ func TestResolveSource_ExplicitBeatsAutodetected(t *testing.T) {
 	createTempKiroIDEStore(t, homeDir) // valid autodetected kiro-ide
 
 	dir := t.TempDir()
-	sqlitePath := createTempFile(t, dir, "explicit.sqlite3")
+	sqlitePath := createValidSQLiteFile(t, dir, "explicit.sqlite3")
 
 	in := ResolveInput{
 		KiroCLIDBFile: sqlitePath,
@@ -473,7 +532,7 @@ func TestResolveSource_ExplicitCredsFileBeatsAutodetectedKiroIDE(t *testing.T) {
 	createTempKiroIDEStore(t, homeDir) // valid autodetected kiro-ide
 
 	dir := t.TempDir()
-	credsPath := createTempFile(t, dir, "explicit-creds.json")
+	credsPath := createValidJSONCredsFile(t, dir, "explicit-creds.json")
 
 	in := ResolveInput{
 		KiroCredsFile: credsPath,
@@ -553,7 +612,7 @@ func TestResolveSource_InvalidExplicitFallsToRefreshToken(t *testing.T) {
 
 func TestResolveSource_InvalidExplicitFallsToNextExplicit(t *testing.T) {
 	dir := t.TempDir()
-	credsPath := createTempFile(t, dir, "creds.json")
+	credsPath := createValidJSONCredsFile(t, dir, "creds.json")
 
 	in := ResolveInput{
 		KiroCLIDBFile: "/nonexistent/explicit.sqlite3", // invalid
@@ -595,7 +654,7 @@ func TestResolveSource_DirectoryIsRejected(t *testing.T) {
 
 func TestResolveSource_AbsolutePathUnchanged(t *testing.T) {
 	dir := t.TempDir()
-	credsPath := createTempFile(t, dir, "creds.json")
+	credsPath := createValidJSONCredsFile(t, dir, "creds.json")
 
 	in := ResolveInput{
 		KiroCredsFile: credsPath,
@@ -625,9 +684,27 @@ func TestResolveSource_TildePathExpanded(t *testing.T) {
 	t.Cleanup(func() { _ = os.RemoveAll(testDir) })
 
 	dbPath := filepath.Join(testDir, "cli.sqlite3")
-	if err := os.WriteFile(dbPath, []byte("{}"), 0o600); err != nil {
+
+	// Create a valid SQLite DB so loadability validation passes.
+	db, err := sql.Open("sqlite", dbPath)
+	if err != nil {
 		t.Fatal(err)
 	}
+	if _, err := db.Exec("CREATE TABLE auth_kv (key TEXT PRIMARY KEY, value TEXT)"); err != nil {
+		_ = db.Close()
+		t.Fatal(err)
+	}
+	tokenData, _ := json.Marshal(map[string]string{
+		"access_token": "tilde-access", "refresh_token": "tilde-refresh",
+	})
+	if _, err := db.Exec(
+		"INSERT INTO auth_kv (key, value) VALUES (?, ?)",
+		"kirocli:social:token", string(tokenData),
+	); err != nil {
+		_ = db.Close()
+		t.Fatal(err)
+	}
+	_ = db.Close()
 
 	in := ResolveInput{
 		KiroCLIDBFile: "~/.giro-test-tilde-expansion/cli.sqlite3",
@@ -654,8 +731,8 @@ func TestResolveSource_TildePathExpanded(t *testing.T) {
 
 func TestResolvedSource_Metadata(t *testing.T) {
 	dir := t.TempDir()
-	sqlitePath := createTempFile(t, dir, "db.sqlite3")
-	credsPath := createTempFile(t, dir, "creds.json")
+	sqlitePath := createValidSQLiteFile(t, dir, "db.sqlite3")
+	credsPath := createValidJSONCredsFile(t, dir, "creds.json")
 
 	// Create kiro-cli and kiro-ide fixtures in separate home dirs.
 	kiroCLIHome := t.TempDir()
@@ -734,8 +811,8 @@ func TestResolvedSource_Metadata(t *testing.T) {
 
 func TestResolveSource_BackwardCompatiblePrecedence(t *testing.T) {
 	dir := t.TempDir()
-	sqlitePath := createTempFile(t, dir, "cli.sqlite3")
-	credsPath := createTempFile(t, dir, "creds.json")
+	sqlitePath := createValidSQLiteFile(t, dir, "cli.sqlite3")
+	credsPath := createValidJSONCredsFile(t, dir, "creds.json")
 
 	tests := []struct {
 		name     string
@@ -809,8 +886,8 @@ func TestResolveSource_BackwardCompatiblePrecedence(t *testing.T) {
 
 func TestResolveSource_FullPrecedenceWithKiroIDE(t *testing.T) {
 	dir := t.TempDir()
-	sqlitePath := createTempFile(t, dir, "cli.sqlite3")
-	credsPath := createTempFile(t, dir, "creds.json")
+	sqlitePath := createValidSQLiteFile(t, dir, "cli.sqlite3")
+	credsPath := createValidJSONCredsFile(t, dir, "creds.json")
 
 	// Home with both autodetected stores.
 	dualHome := t.TempDir()
@@ -1031,7 +1108,7 @@ func TestResolveSource_LogsWinningSourceAndPath(t *testing.T) {
 			},
 			input: func(_ string) ResolveInput {
 				dir := t.TempDir()
-				path := createTempFile(t, dir, "db.sqlite3")
+				path := createValidSQLiteFile(t, dir, "db.sqlite3")
 				return ResolveInput{KiroCLIDBFile: path, HomeDir: t.TempDir()}
 			},
 			wantSource: "env-sqlite",
@@ -1045,7 +1122,7 @@ func TestResolveSource_LogsWinningSourceAndPath(t *testing.T) {
 			},
 			input: func(_ string) ResolveInput {
 				dir := t.TempDir()
-				path := createTempFile(t, dir, "creds.json")
+				path := createValidJSONCredsFile(t, dir, "creds.json")
 				return ResolveInput{KiroCredsFile: path, HomeDir: t.TempDir()}
 			},
 			wantSource: "env-creds-file",
@@ -1141,7 +1218,7 @@ func TestResolveSource_LogsAreSecretSafe(t *testing.T) {
 			name: "env-sqlite-with-token",
 			input: func() ResolveInput {
 				dir := t.TempDir()
-				path := createTempFile(t, dir, "db.sqlite3")
+				path := createValidSQLiteFile(t, dir, "db.sqlite3")
 				return ResolveInput{
 					KiroCLIDBFile: path,
 					RefreshToken:  "super-secret-refresh-token",
@@ -1223,6 +1300,405 @@ func TestResolveSource_BrokenAutodetectedLogsRejection(t *testing.T) {
 	}
 	if !strings.Contains(logs, "directory") {
 		t.Errorf("rejection log should explain the reason (directory), got:\n%s", logs)
+	}
+}
+
+// --- Loadability validation: unit tests ---
+
+func TestValidateSQLiteLoadable_ValidDB(t *testing.T) {
+	tokenData, _ := json.Marshal(map[string]string{
+		"access_token": "test-access", "refresh_token": "test-refresh",
+	})
+	dbPath := createTestDB(t, map[string]string{
+		"kirocli:social:token": string(tokenData),
+	})
+
+	if err := validateSQLiteLoadable(dbPath); err != nil {
+		t.Errorf("expected valid DB to pass, got: %v", err)
+	}
+}
+
+func TestValidateSQLiteLoadable_NotADatabase(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "bad.sqlite3")
+	if err := os.WriteFile(path, []byte("not-a-database"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := validateSQLiteLoadable(path); err == nil {
+		t.Error("expected error for non-database file")
+	}
+}
+
+func TestValidateSQLiteLoadable_EmptyFile(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "empty.sqlite3")
+	if err := os.WriteFile(path, []byte("{}"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := validateSQLiteLoadable(path); err == nil {
+		t.Error("expected error for empty/non-sqlite file")
+	}
+}
+
+func TestValidateSQLiteLoadable_NoAuthKVTable(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "no-table.sqlite3")
+	db, err := sql.Open("sqlite", dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Create the DB with a different table, no auth_kv.
+	if _, err := db.Exec("CREATE TABLE other (key TEXT)"); err != nil {
+		_ = db.Close()
+		t.Fatal(err)
+	}
+	_ = db.Close()
+
+	if err := validateSQLiteLoadable(dbPath); err == nil {
+		t.Error("expected error for DB without auth_kv table")
+	}
+}
+
+func TestValidateSQLiteLoadable_NoUsableTokenKeys(t *testing.T) {
+	dbPath := createTestDB(t, map[string]string{
+		"some:unrelated:key": `{"foo":"bar"}`,
+	})
+
+	if err := validateSQLiteLoadable(dbPath); err == nil {
+		t.Error("expected error for DB with no usable token keys")
+	}
+}
+
+func TestValidateSQLiteLoadable_TokenKeyNoRefreshToken(t *testing.T) {
+	tokenData, _ := json.Marshal(map[string]string{
+		"access_token": "only-access",
+	})
+	dbPath := createTestDB(t, map[string]string{
+		"kirocli:social:token": string(tokenData),
+	})
+
+	if err := validateSQLiteLoadable(dbPath); err == nil {
+		t.Error("expected error for token key without refresh_token")
+	}
+}
+
+func TestValidateSQLiteLoadable_MalformedTokenJSON(t *testing.T) {
+	dbPath := createTestDB(t, map[string]string{
+		"kirocli:social:token": "not-json-at-all",
+	})
+
+	if err := validateSQLiteLoadable(dbPath); err == nil {
+		t.Error("expected error for malformed token JSON in DB")
+	}
+}
+
+func TestValidateJSONCredsLoadable_ValidFile(t *testing.T) {
+	path := createTestCredsFile(t, map[string]interface{}{
+		"refreshToken": "test-refresh",
+	})
+
+	if err := validateJSONCredsLoadable(path); err != nil {
+		t.Errorf("expected valid file to pass, got: %v", err)
+	}
+}
+
+func TestValidateJSONCredsLoadable_InvalidJSON(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "bad.json")
+	if err := os.WriteFile(path, []byte("not-json"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := validateJSONCredsLoadable(path); err == nil {
+		t.Error("expected error for invalid JSON")
+	}
+}
+
+func TestValidateJSONCredsLoadable_MissingRefreshToken(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "no-refresh.json")
+	if err := os.WriteFile(path, []byte(`{"accessToken":"test"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := validateJSONCredsLoadable(path); err == nil {
+		t.Error("expected error for missing refreshToken")
+	}
+}
+
+func TestValidateJSONCredsLoadable_EmptyJSON(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "empty.json")
+	if err := os.WriteFile(path, []byte(`{}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := validateJSONCredsLoadable(path); err == nil {
+		t.Error("expected error for empty JSON object")
+	}
+}
+
+func TestValidateJSONCredsLoadable_EmptyFile(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "empty")
+	if err := os.WriteFile(path, []byte(""), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := validateJSONCredsLoadable(path); err == nil {
+		t.Error("expected error for empty file")
+	}
+}
+
+// --- Loadability validation: resolver integration tests ---
+
+// Malformed explicit SQLite (file exists but not a valid DB) falls back.
+func TestResolveSource_MalformedExplicitSQLite_FallsToNextSource(t *testing.T) {
+	dir := t.TempDir()
+	// Create a regular file (not a valid SQLite DB).
+	badSQLite := createTempFile(t, dir, "bad.sqlite3")
+	homeDir := t.TempDir()
+	kiroIDEPath := createTempKiroIDEStore(t, homeDir)
+
+	in := ResolveInput{
+		KiroCLIDBFile: badSQLite,
+		HomeDir:       homeDir,
+	}
+
+	src, err := ResolveSource(in)
+	if err != nil {
+		t.Fatalf("expected fallback to kiro-ide, got error: %v", err)
+	}
+
+	if src.Kind != SourceKiroIDE {
+		t.Errorf("Kind = %q, want %q (malformed SQLite should be rejected)", src.Kind, SourceKiroIDE)
+	}
+	if src.Path != kiroIDEPath {
+		t.Errorf("Path = %q, want %q", src.Path, kiroIDEPath)
+	}
+}
+
+// Malformed explicit JSON (file exists but no refreshToken) falls back.
+func TestResolveSource_MalformedExplicitJSON_FallsToNextSource(t *testing.T) {
+	dir := t.TempDir()
+	// Create a JSON file without refreshToken.
+	badJSON := createTempFile(t, dir, "bad.json")
+	homeDir := t.TempDir()
+	kiroIDEPath := createTempKiroIDEStore(t, homeDir)
+
+	in := ResolveInput{
+		KiroCredsFile: badJSON,
+		HomeDir:       homeDir,
+	}
+
+	src, err := ResolveSource(in)
+	if err != nil {
+		t.Fatalf("expected fallback to kiro-ide, got error: %v", err)
+	}
+
+	if src.Kind != SourceKiroIDE {
+		t.Errorf("Kind = %q, want %q (malformed JSON should be rejected)", src.Kind, SourceKiroIDE)
+	}
+	if src.Path != kiroIDEPath {
+		t.Errorf("Path = %q, want %q", src.Path, kiroIDEPath)
+	}
+}
+
+// Malformed explicit SQLite falls to valid explicit JSON creds.
+func TestResolveSource_MalformedSQLite_FallsToValidCredsFile(t *testing.T) {
+	dir := t.TempDir()
+	badSQLite := createTempFile(t, dir, "bad.sqlite3")
+	validCreds := createValidJSONCredsFile(t, dir, "creds.json")
+
+	in := ResolveInput{
+		KiroCLIDBFile: badSQLite,
+		KiroCredsFile: validCreds,
+		HomeDir:       t.TempDir(),
+	}
+
+	src, err := ResolveSource(in)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if src.Kind != SourceEnvCredsFile {
+		t.Errorf("Kind = %q, want %q (malformed SQLite should fall to creds file)", src.Kind, SourceEnvCredsFile)
+	}
+	if src.Path != validCreds {
+		t.Errorf("Path = %q, want %q", src.Path, validCreds)
+	}
+}
+
+// Both malformed explicit sources fall to refresh token.
+func TestResolveSource_BothMalformedExplicit_FallsToRefreshToken(t *testing.T) {
+	dir := t.TempDir()
+	badSQLite := createTempFile(t, dir, "bad.sqlite3")
+	badJSON := createTempFile(t, dir, "bad.json")
+
+	in := ResolveInput{
+		KiroCLIDBFile: badSQLite,
+		KiroCredsFile: badJSON,
+		RefreshToken:  "tok-fallback",
+		HomeDir:       t.TempDir(),
+	}
+
+	src, err := ResolveSource(in)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if src.Kind != SourceEnvRefreshToken {
+		t.Errorf("Kind = %q, want %q", src.Kind, SourceEnvRefreshToken)
+	}
+}
+
+// Autodetected malformed kiro-cli (file exists but not a valid SQLite DB) falls back to kiro-ide.
+func TestResolveSource_MalformedAutodetectedSQLite_FallsToKiroIDE(t *testing.T) {
+	homeDir := t.TempDir()
+
+	// Create an invalid file (not a SQLite DB) at the kiro-cli location.
+	kiroCLIPath := defaultKiroCLIDBPath(homeDir)
+	if err := os.MkdirAll(filepath.Dir(kiroCLIPath), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(kiroCLIPath, []byte("not-a-sqlite-db"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create a valid kiro-ide store.
+	kiroIDEPath := createTempKiroIDEStore(t, homeDir)
+
+	in := ResolveInput{HomeDir: homeDir}
+
+	src, err := ResolveSource(in)
+	if err != nil {
+		t.Fatalf("expected fallback to kiro-ide, got error: %v", err)
+	}
+
+	if src.Kind != SourceKiroIDE {
+		t.Errorf("Kind = %q, want %q (malformed kiro-cli should fall back)", src.Kind, SourceKiroIDE)
+	}
+	if src.Path != kiroIDEPath {
+		t.Errorf("Path = %q, want %q", src.Path, kiroIDEPath)
+	}
+}
+
+// Autodetected malformed kiro-ide (JSON without refreshToken) fails closed.
+func TestResolveSource_MalformedAutodetectedJSON_FailClosed(t *testing.T) {
+	homeDir := t.TempDir()
+
+	// Create a JSON file without refreshToken at kiro-ide location.
+	kiroIDEPath := defaultKiroIDECredsPath(homeDir)
+	if err := os.MkdirAll(filepath.Dir(kiroIDEPath), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(kiroIDEPath, []byte(`{}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	in := ResolveInput{HomeDir: homeDir}
+
+	src, err := ResolveSource(in)
+	if err == nil {
+		t.Fatal("expected error when autodetected JSON has no refreshToken")
+	}
+	if src != nil {
+		t.Errorf("expected nil source, got %+v", src)
+	}
+}
+
+// All sources are malformed → fail closed.
+func TestResolveSource_AllMalformed_FailClosed(t *testing.T) {
+	dir := t.TempDir()
+	homeDir := t.TempDir()
+
+	// Malformed explicit sources.
+	badSQLite := createTempFile(t, dir, "bad.sqlite3")
+	badJSON := createTempFile(t, dir, "bad.json")
+
+	// Malformed autodetected kiro-cli (not a valid SQLite DB).
+	kiroCLIPath := defaultKiroCLIDBPath(homeDir)
+	if err := os.MkdirAll(filepath.Dir(kiroCLIPath), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(kiroCLIPath, []byte("not-sqlite"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	// Malformed autodetected kiro-ide (no refreshToken).
+	kiroIDEPath := defaultKiroIDECredsPath(homeDir)
+	if err := os.MkdirAll(filepath.Dir(kiroIDEPath), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(kiroIDEPath, []byte(`{}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	in := ResolveInput{
+		KiroCLIDBFile: badSQLite,
+		KiroCredsFile: badJSON,
+		HomeDir:       homeDir,
+	}
+
+	src, err := ResolveSource(in)
+	if err == nil {
+		t.Fatal("expected error when all sources are malformed")
+	}
+	if src != nil {
+		t.Errorf("expected nil source, got %+v", src)
+	}
+}
+
+// Malformed autodetected kiro-cli logs a rejection with the reason.
+func TestResolveSource_MalformedAutodetectedSQLite_LogsRejection(t *testing.T) {
+	homeDir := t.TempDir()
+
+	// Create an invalid file at the kiro-cli location.
+	kiroCLIPath := defaultKiroCLIDBPath(homeDir)
+	if err := os.MkdirAll(filepath.Dir(kiroCLIPath), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(kiroCLIPath, []byte("not-sqlite"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create a valid kiro-ide store for fallback.
+	createTempKiroIDEStore(t, homeDir)
+
+	logs := captureLogs(t, func() {
+		src, err := ResolveSource(ResolveInput{HomeDir: homeDir})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if src.Kind != SourceKiroIDE {
+			t.Errorf("expected kiro-ide fallback, got %q", src.Kind)
+		}
+	})
+
+	if !strings.Contains(logs, "kiro-cli") {
+		t.Errorf("rejection log should mention kiro-cli, got:\n%s", logs)
+	}
+	if !strings.Contains(logs, "rejected") {
+		t.Errorf("rejection log should contain 'rejected', got:\n%s", logs)
+	}
+}
+
+// Malformed explicit JSON logs a rejection with the reason.
+func TestResolveSource_MalformedExplicitJSON_LogsRejection(t *testing.T) {
+	dir := t.TempDir()
+	badJSON := createTempFile(t, dir, "bad.json")
+
+	logs := captureLogs(t, func() {
+		_, _ = ResolveSource(ResolveInput{
+			KiroCredsFile: badJSON,
+			RefreshToken:  "tok-fallback",
+			HomeDir:       t.TempDir(),
+		})
+	})
+
+	if !strings.Contains(logs, "env-creds-file") {
+		t.Errorf("rejection log should mention env-creds-file, got:\n%s", logs)
+	}
+	if !strings.Contains(logs, "rejected") {
+		t.Errorf("rejection log should contain 'rejected', got:\n%s", logs)
+	}
+	if !strings.Contains(logs, "refreshToken") {
+		t.Errorf("rejection log should explain the reason (missing refreshToken), got:\n%s", logs)
 	}
 }
 

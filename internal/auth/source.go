@@ -1,6 +1,8 @@
 package auth
 
 import (
+	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -70,12 +72,18 @@ func ResolveSource(in ResolveInput) (*ResolvedSource, error) {
 }
 
 // resolveExplicitSources evaluates env-backed credential sources in
-// backward-compatible precedence. File-backed sources are validated; invalid
-// ones are logged and skipped.
+// backward-compatible precedence. File-backed sources are validated for
+// existence and loadability; invalid ones are logged and skipped.
 func resolveExplicitSources(in ResolveInput) *ResolvedSource {
 	if in.KiroCLIDBFile != "" {
 		path := expandPath(in.KiroCLIDBFile)
 		if err := probeFile(path); err != nil {
+			slog.Warn("explicit credential source rejected",
+				"kind", string(SourceEnvSQLite),
+				"path", path,
+				"reason", err.Error(),
+			)
+		} else if err := validateSQLiteLoadable(path); err != nil {
 			slog.Warn("explicit credential source rejected",
 				"kind", string(SourceEnvSQLite),
 				"path", path,
@@ -93,6 +101,12 @@ func resolveExplicitSources(in ResolveInput) *ResolvedSource {
 	if in.KiroCredsFile != "" {
 		path := expandPath(in.KiroCredsFile)
 		if err := probeFile(path); err != nil {
+			slog.Warn("explicit credential source rejected",
+				"kind", string(SourceEnvCredsFile),
+				"path", path,
+				"reason", err.Error(),
+			)
+		} else if err := validateJSONCredsLoadable(path); err != nil {
 			slog.Warn("explicit credential source rejected",
 				"kind", string(SourceEnvCredsFile),
 				"path", path,
@@ -119,6 +133,7 @@ func resolveExplicitSources(in ResolveInput) *ResolvedSource {
 
 // resolveAutodetectedSources probes platform-default credential store
 // locations in deterministic precedence: kiro-cli first, then kiro-ide.
+// Each candidate is validated for both file existence and loadability.
 // When a higher-priority source is present but broken, the rejection is
 // logged so startup evidence stays observable.
 func resolveAutodetectedSources(in ResolveInput) *ResolvedSource {
@@ -134,11 +149,19 @@ func resolveAutodetectedSources(in ResolveInput) *ResolvedSource {
 
 	kiroCLIPath := defaultKiroCLIDBPath(homeDir)
 	if err := probeFile(kiroCLIPath); err == nil {
-		slog.Debug("autodetected credential source",
-			"kind", string(SourceKiroCLI),
-			"path", kiroCLIPath,
-		)
-		return &ResolvedSource{Kind: SourceKiroCLI, Path: kiroCLIPath, Writable: true}
+		if err := validateSQLiteLoadable(kiroCLIPath); err != nil {
+			slog.Warn("autodetected credential source rejected",
+				"kind", string(SourceKiroCLI),
+				"path", kiroCLIPath,
+				"reason", err.Error(),
+			)
+		} else {
+			slog.Debug("autodetected credential source",
+				"kind", string(SourceKiroCLI),
+				"path", kiroCLIPath,
+			)
+			return &ResolvedSource{Kind: SourceKiroCLI, Path: kiroCLIPath, Writable: true}
+		}
 	} else if fileExists(kiroCLIPath) {
 		// The file exists but is not a valid regular file (e.g. a directory).
 		slog.Warn("autodetected credential source rejected",
@@ -150,11 +173,19 @@ func resolveAutodetectedSources(in ResolveInput) *ResolvedSource {
 
 	kiroIDEPath := defaultKiroIDECredsPath(homeDir)
 	if err := probeFile(kiroIDEPath); err == nil {
-		slog.Debug("autodetected credential source",
-			"kind", string(SourceKiroIDE),
-			"path", kiroIDEPath,
-		)
-		return &ResolvedSource{Kind: SourceKiroIDE, Path: kiroIDEPath, Writable: true}
+		if err := validateJSONCredsLoadable(kiroIDEPath); err != nil {
+			slog.Warn("autodetected credential source rejected",
+				"kind", string(SourceKiroIDE),
+				"path", kiroIDEPath,
+				"reason", err.Error(),
+			)
+		} else {
+			slog.Debug("autodetected credential source",
+				"kind", string(SourceKiroIDE),
+				"path", kiroIDEPath,
+			)
+			return &ResolvedSource{Kind: SourceKiroIDE, Path: kiroIDEPath, Writable: true}
+		}
 	} else if fileExists(kiroIDEPath) {
 		slog.Warn("autodetected credential source rejected",
 			"kind", string(SourceKiroIDE),
@@ -202,6 +233,57 @@ func probeFile(path string) error {
 func fileExists(path string) bool {
 	_, err := os.Stat(path)
 	return err == nil
+}
+
+// validateSQLiteLoadable checks that a SQLite file is openable and contains at
+// least one usable auth token key with a refresh token. This distinguishes a
+// merely present path from a loadable credential source.
+func validateSQLiteLoadable(path string) error {
+	db, err := sql.Open("sqlite", path)
+	if err != nil {
+		return fmt.Errorf("cannot open as sqlite database: %w", err)
+	}
+	defer func() { _ = db.Close() }()
+
+	for _, key := range sqliteTokenKeys {
+		var value string
+		err := db.QueryRow("SELECT value FROM auth_kv WHERE key = ?", key).Scan(&value)
+		if err != nil {
+			continue
+		}
+
+		var data sqliteTokenData
+		if err := json.Unmarshal([]byte(value), &data); err != nil {
+			continue
+		}
+
+		if data.RefreshToken != "" {
+			return nil
+		}
+	}
+
+	return errors.New("no usable auth material in sqlite store")
+}
+
+// validateJSONCredsLoadable checks that a JSON credentials file is parseable
+// and contains at least a refresh token, the minimum required for auth to
+// function. This distinguishes a merely present path from a loadable source.
+func validateJSONCredsLoadable(path string) error {
+	rawData, err := os.ReadFile(path) //nolint:gosec // path from trusted config or autodetection
+	if err != nil {
+		return fmt.Errorf("cannot read credentials file: %w", err)
+	}
+
+	var data jsonCredsFile
+	if err := json.Unmarshal(rawData, &data); err != nil {
+		return fmt.Errorf("invalid JSON in credentials file: %w", err)
+	}
+
+	if data.RefreshToken == "" {
+		return errors.New("missing refreshToken in credentials file")
+	}
+
+	return nil
 }
 
 // BuildAuthOptions constructs Options for NewKiroAuthManager from this resolved
