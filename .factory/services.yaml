@@ -6,6 +6,7 @@ commands:
   lint: golangci-lint run
   fmt: gofumpt -w .
   check: just check
+  validate: ./test/live/validate_matrix.sh
 
 services:
   giro:
