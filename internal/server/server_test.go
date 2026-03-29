@@ -42,6 +42,32 @@ func newTestAuthManager(t *testing.T) *auth.KiroAuthManager {
 	return m
 }
 
+func newTestAuthManagerWithUpstream(t *testing.T, upstream string) *auth.KiroAuthManager {
+	t.Helper()
+
+	credsPath := filepath.Join(t.TempDir(), "credentials.json")
+	expiresAt := time.Now().UTC().Add(2 * time.Hour).Format(time.RFC3339)
+	creds := fmt.Sprintf(
+		`{"accessToken":"test-access-token","refreshToken":"test-refresh-token","expiresAt":%q}`,
+		expiresAt,
+	)
+	if err := os.WriteFile(credsPath, []byte(creds), 0o600); err != nil {
+		t.Fatalf("write creds file: %v", err)
+	}
+
+	m, err := auth.NewKiroAuthManager(auth.Options{
+		Region:          "us-east-1",
+		CredsFile:       credsPath,
+		APIHostOverride: upstream,
+		QHostOverride:   upstream,
+	})
+	if err != nil {
+		t.Fatalf("NewKiroAuthManager: %v", err)
+	}
+
+	return m
+}
+
 func newTestResolver() *model.Resolver {
 	cache := model.NewInfoCache(time.Hour)
 	cache.Update([]model.Info{{ModelID: "claude-sonnet-4", MaxInputTokens: config.DefaultMaxInputTokens}})
@@ -219,6 +245,92 @@ func TestNew_Models_Envelope(t *testing.T) {
 		if m["owned_by"] == nil || m["owned_by"] == "" {
 			t.Fatalf("data[%d].owned_by is empty", i)
 		}
+	}
+}
+
+// VAL-ANTHROPIC-002: Anthropic surface accepts Bearer auth in addition to x-api-key.
+func TestNew_Anthropic_BearerAuth_SucceedsWithValidKey(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = fmt.Fprint(w, `{"content":"hello from kiro"}`)
+	}))
+	defer upstream.Close()
+
+	cfg := config.Config{
+		ProxyAPIKey:                    "test-key",
+		StreamingReadTimeout:           2,
+		FirstTokenTimeout:              0.1,
+		FirstTokenMaxRetries:           2,
+		FakeReasoningHandling:          "remove",
+		FakeReasoningMaxTokens:         256,
+		ToolDescriptionMaxLength:       10000,
+		TruncationRecovery:             true,
+		FakeReasoningInitialBufferSize: 20,
+	}
+	authMgr := newTestAuthManagerWithUpstream(t, upstream.URL)
+	router := New(cfg, authMgr, newTestResolver(), &http.Client{Timeout: 2 * time.Second})
+
+	body := `{"model":"claude-sonnet-4","max_tokens":64,"messages":[{"role":"user","content":"hello"}],"stream":false}`
+	req := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer test-key") // Bearer, not x-api-key
+	rr := httptest.NewRecorder()
+	router.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body=%s", rr.Code, http.StatusOK, rr.Body.String())
+	}
+	if !strings.Contains(rr.Body.String(), `"type":"message"`) {
+		t.Fatalf("unexpected response body: %q", rr.Body.String())
+	}
+}
+
+// VAL-ANTHROPIC-007: Missing or wrong Anthropic client auth returns Anthropic protocol-correct auth errors.
+func TestNew_Anthropic_AuthRejection_ErrorEnvelope(t *testing.T) {
+	r := newRouter(t)
+
+	for _, tc := range []struct {
+		name string
+		auth string // value for x-api-key; empty means no auth header at all
+		hdr  string // which header to set ("x-api-key" or "Authorization")
+	}{
+		{"no_auth", "", ""},
+		{"wrong_x_api_key", "wrong-key", "x-api-key"},
+		{"wrong_bearer", "Bearer wrong-key", "Authorization"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader("{}"))
+			if tc.hdr != "" {
+				req.Header.Set(tc.hdr, tc.auth)
+			}
+			rr := httptest.NewRecorder()
+			r.ServeHTTP(rr, req)
+
+			if rr.Code != http.StatusUnauthorized {
+				t.Fatalf("status = %d, want %d", rr.Code, http.StatusUnauthorized)
+			}
+
+			var body map[string]any
+			if err := json.Unmarshal(rr.Body.Bytes(), &body); err != nil {
+				t.Fatalf("decode body: %v", err)
+			}
+
+			// Anthropic error envelope: top-level type:"error" + nested error object.
+			if body["type"] != "error" {
+				t.Fatalf("top-level type = %v, want error", body["type"])
+			}
+
+			errObj, ok := body["error"].(map[string]any)
+			if !ok {
+				t.Fatal("response missing 'error' object")
+			}
+			if errObj["type"] != "authentication_error" {
+				t.Fatalf("error.type = %v, want authentication_error", errObj["type"])
+			}
+			if errObj["message"] == nil || errObj["message"] == "" {
+				t.Fatal("error.message is empty or missing")
+			}
+		})
 	}
 }
 
