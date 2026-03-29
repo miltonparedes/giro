@@ -249,9 +249,18 @@ func TestOpenAIHandler_ChatCompletions_FirstTokenRetry_Exhausted(t *testing.T) {
 
 // --- VAL-OPENAI assertion-targeted tests --------------------------------
 
-// VAL-OPENAI-003: A model advertised by /v1/models is accepted by /v1/chat/completions.
+// VAL-OPENAI-003: A model advertised by /v1/models is the exact model forwarded to Kiro.
 func TestOpenAIHandler_AdvertisedModelUsableInCompletions(t *testing.T) {
-	kiro := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	var forwardedModel string
+	kiro := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Capture the outbound Kiro request body to verify model forwarding.
+		var payload map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&payload); err == nil {
+			convState, _ := payload["conversationState"].(map[string]any)
+			cm, _ := convState["currentMessage"].(map[string]any)
+			ui, _ := cm["userInputMessage"].(map[string]any)
+			forwardedModel, _ = ui["modelId"].(string)
+		}
 		w.WriteHeader(http.StatusOK)
 		_, _ = fmt.Fprint(w, `{"content":"works"}`)
 	}))
@@ -304,6 +313,14 @@ func TestOpenAIHandler_AdvertisedModelUsableInCompletions(t *testing.T) {
 	choices, _ := resp["choices"].([]any)
 	if len(choices) == 0 {
 		t.Fatal("completions response has no choices")
+	}
+
+	// Step 3: verify the advertised model was forwarded to Kiro in the outbound payload.
+	if forwardedModel == "" {
+		t.Fatal("kiro mock did not receive a modelId in the outbound request payload")
+	}
+	if forwardedModel != advertisedModel {
+		t.Fatalf("kiro payload modelId = %q, want %q (the advertised model)", forwardedModel, advertisedModel)
 	}
 }
 
