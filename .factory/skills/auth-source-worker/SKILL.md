@@ -18,16 +18,19 @@ None.
 ## Work Procedure
 
 1. Read `mission.md`, `validation-contract.md`, `AGENTS.md`, `.factory/library/architecture.md`, and `.factory/library/environment.md` before changing code.
-2. From the feature's `fulfills` list, identify the startup/auth behaviors you must make testable. Write failing tests first.
+2. From the feature's `fulfills` list, identify the startup/auth behaviors you must make testable. Write failing tests first and observe them fail before implementation changes.
    - Prefer table-driven unit tests for candidate resolution and precedence.
    - Use temp dirs / temp HOME layouts for autodetection fixtures.
    - Add narrow startup/integration tests when behavior depends on process boot or logging.
+   - If a feature truly cannot start with a failing test first, say why in the handoff instead of claiming full procedure adherence.
 3. Implement the smallest change that introduces or updates the credential-resolution boundary.
    - Keep handlers and protocol formatters free of discovery logic.
    - Preserve explicit-source precedence and source-specific persistence behavior.
    - Keep logs secret-safe while still exposing source/path metadata required by the contract.
 4. Run focused auth/startup tests first, then broaden to repository-level validators.
-5. If the feature changes real startup behavior, run one local smoke against `127.0.0.1:8080` using the service manifest or the mission-approved command. Capture the winning source/path and confirm secrets are not printed.
+5. If the feature changes real startup behavior, run one local smoke against `127.0.0.1:8080` using the service manifest or the mission-approved command.
+   - Record the exact startup command and the exact `/health` verification command in the handoff.
+   - Capture the winning source/path and confirm secrets are not printed.
 6. Stop any process you started. Never leave `giro` or test helpers running.
 7. In the handoff, be explicit about which sources were tested, which precedence/fallback cases were exercised, and whether persistence hit a writable store.
 
@@ -54,6 +57,11 @@ None.
         "command": "golangci-lint run",
         "exitCode": 0,
         "observation": "No lint regressions."
+      },
+      {
+        "command": "curl -sf http://127.0.0.1:8080/health",
+        "exitCode": 0,
+        "observation": "Local startup smoke succeeded after booting giro with the selected source."
       }
     ],
     "interactiveChecks": [
