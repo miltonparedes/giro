@@ -1,0 +1,105 @@
+{
+  "groupId": "cross-area-live-matrix",
+  "surface": "api-shell-curl",
+  "testedAt": "2026-03-29T23:38:27.236748+00:00",
+  "isolation": {
+    "baseUrl": "http://127.0.0.1:8080",
+    "port": 8080,
+    "evidenceDirectory": "/home/milton/.factory/missions/0d379347-5b34-4fb5-830f-2b6650044b7f/evidence/validation-readiness/cross-area-live-matrix",
+    "proxyApiKeyConfigured": true
+  },
+  "assertions": [
+    {
+      "id": "VAL-CROSS-001",
+      "status": "pass",
+      "summary": "The same startup left /health public (HTTP 200), rejected unauthenticated /v1/models with OpenAI-style HTTP 401, and served authenticated /v1/models with auto-kiro and claude-3.7-sonnet present in the list.",
+      "evidence": [
+        "/home/milton/.factory/missions/0d379347-5b34-4fb5-830f-2b6650044b7f/evidence/validation-readiness/cross-area-live-matrix/startup_excerpt.log",
+        "/home/milton/.factory/missions/0d379347-5b34-4fb5-830f-2b6650044b7f/evidence/validation-readiness/cross-area-live-matrix/health.headers",
+        "/home/milton/.factory/missions/0d379347-5b34-4fb5-830f-2b6650044b7f/evidence/validation-readiness/cross-area-live-matrix/health.body",
+        "/home/milton/.factory/missions/0d379347-5b34-4fb5-830f-2b6650044b7f/evidence/validation-readiness/cross-area-live-matrix/models_no_auth.headers",
+        "/home/milton/.factory/missions/0d379347-5b34-4fb5-830f-2b6650044b7f/evidence/validation-readiness/cross-area-live-matrix/models_no_auth.body",
+        "/home/milton/.factory/missions/0d379347-5b34-4fb5-830f-2b6650044b7f/evidence/validation-readiness/cross-area-live-matrix/models_auth.headers",
+        "/home/milton/.factory/missions/0d379347-5b34-4fb5-830f-2b6650044b7f/evidence/validation-readiness/cross-area-live-matrix/models_auth.body",
+        "/home/milton/.factory/missions/0d379347-5b34-4fb5-830f-2b6650044b7f/evidence/validation-readiness/cross-area-live-matrix/live_matrix_runner.txt"
+      ]
+    },
+    {
+      "id": "VAL-CROSS-002",
+      "status": "pass",
+      "summary": "One resolved kiro-cli credential source on a single booted process served both OpenAI and Anthropic non-stream requests successfully without restart or reconfiguration.",
+      "evidence": [
+        "/home/milton/.factory/missions/0d379347-5b34-4fb5-830f-2b6650044b7f/evidence/validation-readiness/cross-area-live-matrix/startup_excerpt.log",
+        "/home/milton/.factory/missions/0d379347-5b34-4fb5-830f-2b6650044b7f/evidence/validation-readiness/cross-area-live-matrix/openai_nonstream.payload.json",
+        "/home/milton/.factory/missions/0d379347-5b34-4fb5-830f-2b6650044b7f/evidence/validation-readiness/cross-area-live-matrix/openai_nonstream.headers",
+        "/home/milton/.factory/missions/0d379347-5b34-4fb5-830f-2b6650044b7f/evidence/validation-readiness/cross-area-live-matrix/openai_nonstream.body",
+        "/home/milton/.factory/missions/0d379347-5b34-4fb5-830f-2b6650044b7f/evidence/validation-readiness/cross-area-live-matrix/anthropic_nonstream.payload.json",
+        "/home/milton/.factory/missions/0d379347-5b34-4fb5-830f-2b6650044b7f/evidence/validation-readiness/cross-area-live-matrix/anthropic_nonstream.headers",
+        "/home/milton/.factory/missions/0d379347-5b34-4fb5-830f-2b6650044b7f/evidence/validation-readiness/cross-area-live-matrix/anthropic_nonstream.body",
+        "/home/milton/.factory/missions/0d379347-5b34-4fb5-830f-2b6650044b7f/evidence/validation-readiness/cross-area-live-matrix/live_matrix_runner.txt"
+      ]
+    },
+    {
+      "id": "VAL-CROSS-003",
+      "status": "pass",
+      "summary": "Invalid client auth was rejected locally on both protocol families with HTTP 401 while preserving the OpenAI error envelope on /v1/models and the Anthropic error envelope on /v1/messages.",
+      "evidence": [
+        "/home/milton/.factory/missions/0d379347-5b34-4fb5-830f-2b6650044b7f/evidence/validation-readiness/cross-area-live-matrix/openai_negative_auth.headers",
+        "/home/milton/.factory/missions/0d379347-5b34-4fb5-830f-2b6650044b7f/evidence/validation-readiness/cross-area-live-matrix/openai_negative_auth.body",
+        "/home/milton/.factory/missions/0d379347-5b34-4fb5-830f-2b6650044b7f/evidence/validation-readiness/cross-area-live-matrix/anthropic_negative_auth.headers",
+        "/home/milton/.factory/missions/0d379347-5b34-4fb5-830f-2b6650044b7f/evidence/validation-readiness/cross-area-live-matrix/anthropic_negative_auth.body",
+        "/home/milton/.factory/missions/0d379347-5b34-4fb5-830f-2b6650044b7f/evidence/validation-readiness/cross-area-live-matrix/live_matrix_runner.txt"
+      ]
+    },
+    {
+      "id": "VAL-CROSS-004",
+      "status": "pass",
+      "summary": "The same booted process served successful OpenAI non-stream, OpenAI SSE stream, Anthropic non-stream, and Anthropic SSE stream requests in one run.",
+      "evidence": [
+        "/home/milton/.factory/missions/0d379347-5b34-4fb5-830f-2b6650044b7f/evidence/validation-readiness/cross-area-live-matrix/startup_excerpt.log",
+        "/home/milton/.factory/missions/0d379347-5b34-4fb5-830f-2b6650044b7f/evidence/validation-readiness/cross-area-live-matrix/openai_nonstream.headers",
+        "/home/milton/.factory/missions/0d379347-5b34-4fb5-830f-2b6650044b7f/evidence/validation-readiness/cross-area-live-matrix/openai_nonstream.body",
+        "/home/milton/.factory/missions/0d379347-5b34-4fb5-830f-2b6650044b7f/evidence/validation-readiness/cross-area-live-matrix/openai_stream.headers",
+        "/home/milton/.factory/missions/0d379347-5b34-4fb5-830f-2b6650044b7f/evidence/validation-readiness/cross-area-live-matrix/openai_stream.body",
+        "/home/milton/.factory/missions/0d379347-5b34-4fb5-830f-2b6650044b7f/evidence/validation-readiness/cross-area-live-matrix/anthropic_nonstream.headers",
+        "/home/milton/.factory/missions/0d379347-5b34-4fb5-830f-2b6650044b7f/evidence/validation-readiness/cross-area-live-matrix/anthropic_nonstream.body",
+        "/home/milton/.factory/missions/0d379347-5b34-4fb5-830f-2b6650044b7f/evidence/validation-readiness/cross-area-live-matrix/anthropic_stream.headers",
+        "/home/milton/.factory/missions/0d379347-5b34-4fb5-830f-2b6650044b7f/evidence/validation-readiness/cross-area-live-matrix/anthropic_stream.body",
+        "/home/milton/.factory/missions/0d379347-5b34-4fb5-830f-2b6650044b7f/evidence/validation-readiness/cross-area-live-matrix/live_matrix_runner.txt"
+      ]
+    },
+    {
+      "id": "VAL-CROSS-005",
+      "status": "pass",
+      "summary": "Within the same live validation session, both negative-auth checks returned protocol-correct 401s, OpenAI tool use returned tool_calls for get_weather, and a base64 OpenAI vision request produced an image-grounded response referencing the generated two-color PNG.",
+      "evidence": [
+        "/home/milton/.factory/missions/0d379347-5b34-4fb5-830f-2b6650044b7f/evidence/validation-readiness/cross-area-live-matrix/startup_excerpt.log",
+        "/home/milton/.factory/missions/0d379347-5b34-4fb5-830f-2b6650044b7f/evidence/validation-readiness/cross-area-live-matrix/openai_negative_auth.body",
+        "/home/milton/.factory/missions/0d379347-5b34-4fb5-830f-2b6650044b7f/evidence/validation-readiness/cross-area-live-matrix/anthropic_negative_auth.body",
+        "/home/milton/.factory/missions/0d379347-5b34-4fb5-830f-2b6650044b7f/evidence/validation-readiness/cross-area-live-matrix/openai_tool.payload.json",
+        "/home/milton/.factory/missions/0d379347-5b34-4fb5-830f-2b6650044b7f/evidence/validation-readiness/cross-area-live-matrix/openai_tool.headers",
+        "/home/milton/.factory/missions/0d379347-5b34-4fb5-830f-2b6650044b7f/evidence/validation-readiness/cross-area-live-matrix/openai_tool.body",
+        "/home/milton/.factory/missions/0d379347-5b34-4fb5-830f-2b6650044b7f/evidence/validation-readiness/cross-area-live-matrix/vision-test.png",
+        "/home/milton/.factory/missions/0d379347-5b34-4fb5-830f-2b6650044b7f/evidence/validation-readiness/cross-area-live-matrix/vision-test.data-url.txt",
+        "/home/milton/.factory/missions/0d379347-5b34-4fb5-830f-2b6650044b7f/evidence/validation-readiness/cross-area-live-matrix/openai_vision.payload.json",
+        "/home/milton/.factory/missions/0d379347-5b34-4fb5-830f-2b6650044b7f/evidence/validation-readiness/cross-area-live-matrix/openai_vision.headers",
+        "/home/milton/.factory/missions/0d379347-5b34-4fb5-830f-2b6650044b7f/evidence/validation-readiness/cross-area-live-matrix/openai_vision.body",
+        "/home/milton/.factory/missions/0d379347-5b34-4fb5-830f-2b6650044b7f/evidence/validation-readiness/cross-area-live-matrix/live_matrix_runner.txt"
+      ]
+    }
+  ],
+  "toolsUsed": [
+    "shell",
+    "curl",
+    "python3",
+    "ffmpeg"
+  ],
+  "frictions": [],
+  "blockers": [],
+  "notes": [
+    "No giro process was already running on 127.0.0.1:8080, so one local process was booted for this isolated validation session and its logs were captured under the assigned evidence directory.",
+    "Raw request payloads, headers, bodies, curl exit codes, and status files were preserved in the assigned evidence directory for every exercised path.",
+    "Executed the preferred committed asset ./test/live/validate_matrix.sh and captured its full same-process transcript in live_matrix_runner.txt."
+  ],
+  "summary": "Validated VAL-CROSS-001 through VAL-CROSS-005 against one local giro process on 127.0.0.1:8080; all five assigned assertions passed."
+}
