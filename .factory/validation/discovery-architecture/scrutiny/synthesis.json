@@ -1,0 +1,71 @@
+{
+  "milestone": "discovery-architecture",
+  "round": 1,
+  "status": "fail",
+  "validatorsRun": {
+    "test": {
+      "passed": true,
+      "command": "cd \"/var/home/milton/Workspaces/M/giro\" && go test -race -count=1 -p 16 ./...",
+      "exitCode": 0
+    },
+    "typecheck": {
+      "passed": true,
+      "command": "cd \"/var/home/milton/Workspaces/M/giro\" && go test -run '^$' -p 16 ./...",
+      "exitCode": 0
+    },
+    "lint": {
+      "passed": true,
+      "command": "cd \"/var/home/milton/Workspaces/M/giro\" && golangci-lint run",
+      "exitCode": 0
+    }
+  },
+  "reviewsSummary": {
+    "total": 3,
+    "passed": 0,
+    "failed": 3,
+    "failedFeatures": [
+      "credential-resolution-foundation",
+      "env-and-kiro-cli-source-selection",
+      "kiro-ide-autodetection-and-fallbacks"
+    ]
+  },
+  "blockingIssues": [
+    {
+      "featureId": "credential-resolution-foundation",
+      "severity": "blocking",
+      "description": "The resolver selects explicit file-backed sources without validating that the path is readable and loadable, so startup can proceed without a usable credential source instead of failing closed or falling back."
+    },
+    {
+      "featureId": "env-and-kiro-cli-source-selection",
+      "severity": "blocking",
+      "description": "Resolution still accepts malformed-but-existing explicit or autodetected stores because candidate validation only checks filesystem existence, which breaks the required fallback and fail-closed behavior."
+    },
+    {
+      "featureId": "kiro-ide-autodetection-and-fallbacks",
+      "severity": "blocking",
+      "description": "Autodetected fallback only rejects missing or non-regular files; a malformed but existing kiro-cli store can still win over a healthy kiro-ide store."
+    }
+  ],
+  "appliedUpdates": [],
+  "suggestedGuidanceUpdates": [
+    {
+      "target": "skill:auth-source-worker",
+      "suggestion": "Require explicit local startup smoke evidence for startup/auth features, including the concrete `go run ./cmd/giro` and `curl /health` verification commands in the handoff or transcript.",
+      "evidence": "Both `credential-resolution-foundation` and `kiro-ide-autodetection-and-fallbacks` changed startup/auth behavior, but their transcripts and handoffs only showed tests/lint/fmt and no local smoke command even though the skill requires a local smoke run on `127.0.0.1:8080`.",
+      "isSystemic": true
+    },
+    {
+      "target": "skill:auth-source-worker",
+      "suggestion": "Tighten TDD/adherence reporting so workers cannot mark `skillFeedback.followedProcedure: true` when implementation changes happen before failing tests, or explicitly relax the skill if test-first work is optional.",
+      "evidence": "`credential-resolution-foundation` created `internal/auth/source.go` before `internal/auth/source_test.go`, and `env-and-kiro-cli-source-selection` edited `internal/auth/source.go` before creating/updating tests, yet both handoffs still reported `followedProcedure: true` while the skill says to add failing tests first.",
+      "isSystemic": true
+    }
+  ],
+  "rejectedObservations": [
+    {
+      "observation": "The `kiro-ide-autodetection-and-fallbacks` review separately reported the missing local startup smoke run.",
+      "reason": "duplicate"
+    }
+  ],
+  "previousRound": null
+}

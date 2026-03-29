@@ -1,0 +1,20 @@
+{
+  "featureId": "kiro-ide-autodetection-and-fallbacks",
+  "status": "fail",
+  "summary": "Autodetected kiro-cli fallback is only implemented for missing/non-regular files; a present but malformed kiro-cli store still wins over a healthy kiro-ide store, so the feature does not fully deliver safe fallback between broken autodetected sources.",
+  "issues": [
+    {
+      "severity": "blocking",
+      "description": "The resolver treats any regular file at the autodetected kiro-cli path as usable, so corrupt or schema-invalid kiro-cli stores are selected instead of falling back to kiro-ide.",
+      "evidence": "`internal/auth/source.go:136-157` selects `SourceKiroCLI`/`SourceKiroIDE` whenever `probeFile` succeeds, but `probeFile` (`internal/auth/source.go:188-196`) only checks existence and \"not a directory\". `NewKiroAuthManager` does not reject unusable stores: it always returns success (`internal/auth/auth.go:106-145`), while `loadFromSQLite`/`loadFromFile` only log parse/load failures (`internal/auth/auth.go:442-455`, `524-551`). The new tests only cover directory-shaped breakage (`internal/auth/source_test.go:328-358`, `1198-1225`), so a malformed but existing kiro-cli DB/JSON can still block fallback and let startup proceed with broken auth state.",
+      "suggestedFix": "Validate autodetected candidates for actual loadability before selecting them (for example, minimally parse the JSON creds file and confirm the SQLite store contains readable auth material), or make auth-manager construction fail for unusable selected sources so startup can reject the broken kiro-cli candidate and continue to kiro-ide."
+    }
+  ],
+  "sharedStateObservations": [
+    {
+      "target": "skill",
+      "observation": "The `auth-source-worker` procedure requires a local startup smoke run for startup/auth changes, but this feature's transcript and handoff show only unit/full test and lint commands.",
+      "reason": "`/var/home/milton/Workspaces/M/giro/.factory/skills/auth-source-worker/SKILL.md` step 5 says to run a local smoke on `127.0.0.1:8080` for real startup behavior. The worker transcript skeleton for session `168ad6f5-beb3-4020-9392-d783f70c9cb3` and its handoff verification list `go test`, `gofumpt`, and `golangci-lint`, but no `go run ./cmd/giro` or `/health` smoke command."
+    }
+  ]
+}

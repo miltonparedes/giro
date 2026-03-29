@@ -1,0 +1,20 @@
+{
+  "featureId": "env-and-kiro-cli-source-selection",
+  "status": "fail",
+  "summary": "Review found a blocking resolution bug: the feature treats any existing file as a valid credential source, so malformed explicit or autodetected stores are selected instead of being rejected for fallback or fail-closed startup.",
+  "issues": [
+    {
+      "severity": "blocking",
+      "description": "Credential resolution only proves that a path exists, not that the selected store is actually loadable. As a result, an existing-but-invalid `KIRO_CLI_DB_FILE`, `KIRO_CREDS_FILE`, or default `kiro-cli` file is accepted as the winning source, which prevents the required fallback to a healthy lower-priority source and can let startup continue with unusable auth state instead of failing closed.",
+      "evidence": "`internal/auth/source.go:77-105,134-139` returns explicit and autodetected sources after `probeFile()`; `probeFile()` itself only does `os.Stat`/directory checks (`internal/auth/source.go:157-166`). `internal/auth/auth.go:124-145,455,533-534` shows `NewKiroAuthManager` swallowing malformed SQLite/JSON load failures as logs and still returning success, and `cmd/giro/main.go:44-78,94` proceeds to normal startup once `ResolveSource` picked that file. The added tests do not cover malformed-but-existing stores: `internal/auth/source_test.go:16-22` creates placeholder `{}` files, and those placeholders are then treated as 'valid' explicit sources in tests such as `TestResolveSource_Precedence_SQLiteWins` (`internal/auth/source_test.go:46-63`) and `TestResolveSource_InvalidExplicitFallsToAutodetected` (`internal/auth/source_test.go:245-261`).",
+      "suggestedFix": "Make candidate resolution validate that file-backed sources are actually loadable before selecting them (for example by parsing the creds file / opening the SQLite store and verifying expected auth material, or by letting auth-manager construction return candidate-specific validation errors that the resolver can use for fallback). Add regression tests for existing-but-malformed explicit JSON/SQLite stores and for fail-closed/fallback behavior when autodetected stores are present but invalid."
+    }
+  ],
+  "sharedStateObservations": [
+    {
+      "target": "skill",
+      "observation": "The `auth-source-worker` skill says to write failing tests first, but this worker transcript shows `internal/auth/source.go` being edited before `internal/auth/source_test.go` was created.",
+      "reason": "The transcript skeleton for worker `f27de2db-8556-4c9f-ad95-55b25db58aa2` records multiple `Edit` calls on `internal/auth/source.go` before the later `Create` call for `internal/auth/source_test.go`, while the handoff still reports `skillFeedback.followedProcedure: true`. That mismatch suggests the skill guidance/adherence reporting is not being enforced reliably."
+    }
+  ]
+}
