@@ -72,3 +72,38 @@ Run against one live process whenever the milestone/feature requires full-path v
   - capture stdout/stderr for every startup attempt
   - capture the exact curl transcript or status/body excerpt used to prove each assertion
   - when validating rejection/fallback behavior, include both the rejection log and the eventual winning-source log in the report
+
+## Flow Validator Guidance: startup-refresh-shell
+
+- Surface: shell-driven autodetected refresh/persistence validation for `VAL-STARTUP-009`.
+- Port boundary: use only `127.0.0.1:8080`; this flow must run alone because it boots, stops, and reboots `giro` on the shared mission port.
+- Isolation boundary:
+  - create a fresh temp `HOME` under the assigned evidence directory
+  - copy the real local `kiro-cli` sqlite store into that temp home so autodetection resolves inside the temp tree
+  - modify only the copied fixture store; never mutate the real `~/.local/share/kiro-cli/data.sqlite3` directly
+- Runtime expectations:
+  - unset explicit auth env vars so startup truly uses autodetection
+  - make the copied store look stale-but-refreshable before the first boot
+  - capture first boot log, first authenticated request, shutdown, second boot log, and second authenticated request
+- Secret handling:
+  - logs and reports may mention source/path and token expiry observations
+  - never print raw refresh tokens, access tokens, sqlite blobs, or JSON credential payloads
+
+## Flow Validator Guidance: api-shell-curl
+
+- Surface: live HTTP validation against one already-running `giro` process on `http://127.0.0.1:8080`.
+- Shared-service boundary:
+  - do not start, stop, or restart `giro`; the parent validator owns process lifecycle
+  - assume `PROXY_API_KEY=giro-validation-key`
+  - keep requests read-only from the service-management perspective; only use `curl`, shell helpers, and files inside the assigned evidence directory
+- Isolation boundary:
+  - write every request payload, response transcript, and derived helper file under the assigned evidence directory
+  - do not reuse another flow validator's temporary files
+- Request guidance:
+  - prefer `claude-sonnet-4` for direct model requests unless the assertion specifically needs an advertised model from `/v1/models`
+  - for tool-use assertions, keep `temperature` at `0` and explicitly require the tool call in the prompt
+  - for vision assertions, use a non-trivial local PNG (at least `10x10`); ask for observable image properties such as the dominant color or simple layout
+- Evidence expectations:
+  - include raw status line / headers for auth and SSE assertions
+  - for streaming assertions, save the full SSE transcript and identify the required terminal events
+  - for tool-use continuation, save both the first tool-call response and the second `tool_result` continuation response

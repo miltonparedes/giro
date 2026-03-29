@@ -1,0 +1,116 @@
+{
+  "groupId": "anthropic-surface",
+  "surface": "api-shell-curl",
+  "testedAt": "2026-03-29T22:10:22Z",
+  "assertions": [
+    {
+      "id": "VAL-ANTHROPIC-001",
+      "status": "pass",
+      "summary": "Non-stream /v1/messages with x-api-key returned HTTP 200 with type=message, role=assistant, content blocks, and stop_reason=end_turn.",
+      "evidence": [
+        "runtime-compat/anthropic-surface/VAL-ANTHROPIC-001-request.json",
+        "runtime-compat/anthropic-surface/VAL-ANTHROPIC-001-headers.txt",
+        "runtime-compat/anthropic-surface/VAL-ANTHROPIC-001-body.json"
+      ]
+    },
+    {
+      "id": "VAL-ANTHROPIC-002",
+      "status": "pass",
+      "summary": "The same non-stream request succeeded with Authorization: Bearer auth and returned the Anthropic message envelope with stop_reason=end_turn.",
+      "evidence": [
+        "runtime-compat/anthropic-surface/VAL-ANTHROPIC-002-request.json",
+        "runtime-compat/anthropic-surface/VAL-ANTHROPIC-002-headers.txt",
+        "runtime-compat/anthropic-surface/VAL-ANTHROPIC-002-body.json"
+      ]
+    },
+    {
+      "id": "VAL-ANTHROPIC-003",
+      "status": "pass",
+      "summary": "Malformed JSON returned HTTP 400 with top-level type=error and nested error.type=api_error plus an invalid request body parse message.",
+      "evidence": [
+        "runtime-compat/anthropic-surface/VAL-ANTHROPIC-003-malformed.payload.json",
+        "runtime-compat/anthropic-surface/VAL-ANTHROPIC-003-malformed.headers",
+        "runtime-compat/anthropic-surface/VAL-ANTHROPIC-003-malformed.json"
+      ]
+    },
+    {
+      "id": "VAL-ANTHROPIC-004",
+      "status": "pass",
+      "summary": "Streaming /v1/messages returned HTTP 200 text/event-stream and emitted message_start, content block events, message_delta, and message_stop.",
+      "evidence": [
+        "runtime-compat/anthropic-surface/VAL-ANTHROPIC-004-stream.payload.json",
+        "runtime-compat/anthropic-surface/VAL-ANTHROPIC-004-stream.headers",
+        "runtime-compat/anthropic-surface/VAL-ANTHROPIC-004-stream.txt"
+      ]
+    },
+    {
+      "id": "VAL-ANTHROPIC-005",
+      "status": "pass",
+      "summary": "Forced tool use returned a tool_use block for get_weather with a stable tool ID and stop_reason=tool_use.",
+      "evidence": [
+        "runtime-compat/anthropic-surface/VAL-ANTHROPIC-005-tooluse.payload.json",
+        "runtime-compat/anthropic-surface/VAL-ANTHROPIC-005-tooluse.headers",
+        "runtime-compat/anthropic-surface/VAL-ANTHROPIC-005-tooluse.json",
+        "runtime-compat/anthropic-surface/VAL-ANTHROPIC-005-tooluse-id.txt"
+      ]
+    },
+    {
+      "id": "VAL-ANTHROPIC-006",
+      "status": "pass",
+      "summary": "A continuation request replaying the returned tool_use block and the same tool_use_id in tool_result returned final assistant weather text with stop_reason=end_turn.",
+      "evidence": [
+        "runtime-compat/anthropic-surface/VAL-ANTHROPIC-005-tooluse.json",
+        "runtime-compat/anthropic-surface/VAL-ANTHROPIC-005-tooluse-id.txt",
+        "runtime-compat/anthropic-surface/VAL-ANTHROPIC-006-tool-result.payload.json",
+        "runtime-compat/anthropic-surface/VAL-ANTHROPIC-006-tool-result.headers",
+        "runtime-compat/anthropic-surface/VAL-ANTHROPIC-006-tool-result.json"
+      ]
+    },
+    {
+      "id": "VAL-ANTHROPIC-007",
+      "status": "pass",
+      "summary": "Missing auth and wrong Bearer auth both returned HTTP 401 with the Anthropic authentication_error envelope.",
+      "evidence": [
+        "runtime-compat/anthropic-surface/VAL-ANTHROPIC-007-missing-auth.payload.json",
+        "runtime-compat/anthropic-surface/VAL-ANTHROPIC-007-missing-auth.headers",
+        "runtime-compat/anthropic-surface/VAL-ANTHROPIC-007-missing-auth.json",
+        "runtime-compat/anthropic-surface/VAL-ANTHROPIC-007-wrong-bearer.payload.json",
+        "runtime-compat/anthropic-surface/VAL-ANTHROPIC-007-wrong-bearer.headers",
+        "runtime-compat/anthropic-surface/VAL-ANTHROPIC-007-wrong-bearer.json"
+      ]
+    },
+    {
+      "id": "VAL-ANTHROPIC-008",
+      "status": "pass",
+      "summary": "Forced streamed tool use preserved the Anthropic SSE lifecycle with content_block_start for tool_use, input_json_delta, message_delta stop_reason=tool_use, and final message_stop.",
+      "evidence": [
+        "runtime-compat/anthropic-surface/VAL-ANTHROPIC-008-tooluse-stream.payload.json",
+        "runtime-compat/anthropic-surface/VAL-ANTHROPIC-008-tooluse-stream.headers",
+        "runtime-compat/anthropic-surface/VAL-ANTHROPIC-008-tooluse-stream.txt"
+      ]
+    },
+    {
+      "id": "VAL-ANTHROPIC-009",
+      "status": "fail",
+      "summary": "The base64 image request returned HTTP 200 but the assistant said no actual image file was attached, so the image block was not grounded in the response.",
+      "evidence": [
+        "runtime-compat/anthropic-surface/vision-test.png",
+        "runtime-compat/anthropic-surface/vision-test.base64.txt",
+        "runtime-compat/anthropic-surface/VAL-ANTHROPIC-009-vision.payload.json",
+        "runtime-compat/anthropic-surface/VAL-ANTHROPIC-009-vision.headers",
+        "runtime-compat/anthropic-surface/VAL-ANTHROPIC-009-vision.json"
+      ]
+    }
+  ],
+  "toolsUsed": [
+    "shell",
+    "curl"
+  ],
+  "frictions": [],
+  "blockers": [],
+  "setupNotes": [
+    "Used the already-running local giro process at http://127.0.0.1:8080 and did not restart it.",
+    "Confirmed claude-sonnet-4 was advertised by authenticated GET /v1/models before sending direct Anthropic requests.",
+    "Startup log for this run showed credential source resolved to kiro-cli at /home/milton/.local/share/kiro-cli/data.sqlite3."
+  ]
+}

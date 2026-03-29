@@ -1,0 +1,35 @@
+{
+  "groupId": "startup-refresh-persistence",
+  "surface": "startup-refresh-shell",
+  "assertions": [
+    {
+      "id": "VAL-STARTUP-009",
+      "status": "pass",
+      "summary": "Autodetected kiro-cli refresh persistence passed: run1 resolved kiro-cli at the copied sqlite path, refreshed the stale token, and /v1/models returned 200; run2 resolved the same path and /v1/models returned 200 again without manual reconfiguration.",
+      "evidence": [
+        "runtime-compat/startup-refresh-persistence/setup.json",
+        "runtime-compat/startup-refresh-persistence/run1.startup.log",
+        "runtime-compat/startup-refresh-persistence/run1.models.transcript.json",
+        "runtime-compat/startup-refresh-persistence/run1.models.headers.txt",
+        "runtime-compat/startup-refresh-persistence/run1.models.body.json",
+        "runtime-compat/startup-refresh-persistence/run2.startup.log",
+        "runtime-compat/startup-refresh-persistence/run2.models.transcript.json",
+        "runtime-compat/startup-refresh-persistence/run2.models.headers.txt",
+        "runtime-compat/startup-refresh-persistence/run2.models.body.json",
+        "runtime-compat/startup-refresh-persistence/summary.json"
+      ]
+    }
+  ],
+  "toolsUsed": [
+    "shell",
+    "curl"
+  ],
+  "frictions": [],
+  "blockers": [],
+  "setupNotes": [
+    "Used only 127.0.0.1:8080.",
+    "Copied ~/.local/share/kiro-cli/data.sqlite3 into the assigned evidence temp HOME and mutated only the copied sqlite store.",
+    "Unset KIRO_CLI_DB_FILE, KIRO_CREDS_FILE, REFRESH_TOKEN, and PROFILE_ARN so startup used autodetection.",
+    "Never wrote raw token values or credential blobs to logs or reports."
+  ]
+}

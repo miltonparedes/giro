@@ -1,0 +1,103 @@
+{
+  "groupId": "openai-surface",
+  "surface": "api-shell-curl",
+  "testedAt": "2026-03-29T22:06:19.171980+00:00",
+  "assertions": [
+    {
+      "id": "VAL-OPENAI-001",
+      "status": "pass",
+      "summary": "Missing auth on /v1/models and invalid Bearer auth on /v1/chat/completions both returned HTTP 401 with the OpenAI authentication_error envelope.",
+      "evidence": [
+        "runtime-compat/openai-surface/VAL-OPENAI-001-models-missing-auth.headers",
+        "runtime-compat/openai-surface/VAL-OPENAI-001-models-missing-auth.json",
+        "runtime-compat/openai-surface/VAL-OPENAI-001-chat-invalid-auth.payload.json",
+        "runtime-compat/openai-surface/VAL-OPENAI-001-chat-invalid-auth.headers",
+        "runtime-compat/openai-surface/VAL-OPENAI-001-chat-invalid-auth.json"
+      ]
+    },
+    {
+      "id": "VAL-OPENAI-002",
+      "status": "pass",
+      "summary": "Authenticated /v1/models returned HTTP 200 with object=list and 12 advertised models.",
+      "evidence": [
+        "runtime-compat/openai-surface/VAL-OPENAI-002-models.headers",
+        "runtime-compat/openai-surface/VAL-OPENAI-002-models.json"
+      ]
+    },
+    {
+      "id": "VAL-OPENAI-003",
+      "status": "pass",
+      "summary": "Advertised model auto-kiro from /v1/models was accepted by /v1/chat/completions and returned HTTP 200.",
+      "evidence": [
+        "runtime-compat/openai-surface/VAL-OPENAI-002-models.json",
+        "runtime-compat/openai-surface/advertised-model.txt",
+        "runtime-compat/openai-surface/VAL-OPENAI-003-chat.payload.json",
+        "runtime-compat/openai-surface/VAL-OPENAI-003-chat.headers",
+        "runtime-compat/openai-surface/VAL-OPENAI-003-chat.json"
+      ]
+    },
+    {
+      "id": "VAL-OPENAI-004",
+      "status": "pass",
+      "summary": "Malformed JSON returned HTTP 400 with a structured JSON error envelope and a parse-oriented message (unexpected EOF).",
+      "evidence": [
+        "runtime-compat/openai-surface/VAL-OPENAI-004-malformed.payload.json",
+        "runtime-compat/openai-surface/VAL-OPENAI-004-malformed.headers",
+        "runtime-compat/openai-surface/VAL-OPENAI-004-malformed.json"
+      ]
+    },
+    {
+      "id": "VAL-OPENAI-005",
+      "status": "pass",
+      "summary": "Non-stream completion returned object=chat.completion with an assistant message, finish_reason=stop, and a usage object.",
+      "evidence": [
+        "runtime-compat/openai-surface/VAL-OPENAI-005-nonstream.payload.json",
+        "runtime-compat/openai-surface/VAL-OPENAI-005-nonstream.headers",
+        "runtime-compat/openai-surface/VAL-OPENAI-005-nonstream.json"
+      ]
+    },
+    {
+      "id": "VAL-OPENAI-006",
+      "status": "pass",
+      "summary": "Streaming completion returned HTTP 200, Content-Type text/event-stream, data: chunks including a terminal finish_reason chunk, and data: [DONE].",
+      "evidence": [
+        "runtime-compat/openai-surface/VAL-OPENAI-006-stream.payload.json",
+        "runtime-compat/openai-surface/VAL-OPENAI-006-stream.headers",
+        "runtime-compat/openai-surface/VAL-OPENAI-006-stream.txt"
+      ]
+    },
+    {
+      "id": "VAL-OPENAI-007",
+      "status": "pass",
+      "summary": "Forced tool call returned choices[0].message.tool_calls with a stable tool ID, function name get_weather, serialized arguments, and finish_reason=tool_calls.",
+      "evidence": [
+        "runtime-compat/openai-surface/VAL-OPENAI-007-toolcall.payload.json",
+        "runtime-compat/openai-surface/VAL-OPENAI-007-toolcall.headers",
+        "runtime-compat/openai-surface/VAL-OPENAI-007-toolcall.json"
+      ]
+    },
+    {
+      "id": "VAL-OPENAI-008",
+      "status": "fail",
+      "summary": "Base64 vision request returned HTTP 200 but the assistant said no image was attached instead of grounding the response in the PNG content.",
+      "evidence": [
+        "runtime-compat/openai-surface/vision-test.png",
+        "runtime-compat/openai-surface/vision-test.data-url.txt",
+        "runtime-compat/openai-surface/VAL-OPENAI-008-vision.payload.json",
+        "runtime-compat/openai-surface/VAL-OPENAI-008-vision.headers",
+        "runtime-compat/openai-surface/VAL-OPENAI-008-vision.json"
+      ]
+    }
+  ],
+  "toolsUsed": [
+    "shell",
+    "curl"
+  ],
+  "frictions": [],
+  "blockers": [],
+  "setupNotes": [
+    "Used the already-running local giro process at http://127.0.0.1:8080; did not restart the service.",
+    "Startup log for this run showed credential source resolved to kiro-cli at /home/milton/.local/share/kiro-cli/data.sqlite3.",
+    "Used advertised model auto-kiro for VAL-OPENAI-003 and preferred model claude-sonnet-4 for the other direct requests."
+  ]
+}
