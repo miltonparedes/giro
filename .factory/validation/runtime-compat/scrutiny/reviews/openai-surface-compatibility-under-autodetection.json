@@ -1,0 +1,28 @@
+{
+  "featureId": "openai-surface-compatibility-under-autodetection",
+  "reviewedAt": "2026-03-29T15:23:14-06:00",
+  "commitId": "3220952c83705e666d65047bd14f36a618c4ed84",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "fail",
+  "codeReview": {
+    "summary": "The new server- and handler-level coverage is mostly aligned with the OpenAI surface contract, but the added VAL-OPENAI-003 test is a false positive: it never verifies that the advertised model ID from `/v1/models` is the model that actually reaches the Kiro request path. Because this feature's deliverable is assertion-targeted coverage for VAL-OPENAI-001 through VAL-OPENAI-007, that gap means the implementation does not fully satisfy the stated feature scope.",
+    "issues": [
+      {
+        "file": "internal/handler/openai_integration_test.go",
+        "line": 253,
+        "severity": "blocking",
+        "description": "TestOpenAIHandler_AdvertisedModelUsableInCompletions does not inspect the outbound request or resolved model at all: the mock upstream always returns 200 regardless of the posted payload, so the test would still pass if ChatCompletions ignored the advertised model, rewrote it incorrectly, or sent a different internal model ID. That leaves VAL-OPENAI-003 effectively uncovered even though the handoff claims full coverage for all seven OpenAI assertions."
+      }
+    ]
+  },
+  "sharedStateObservations": [
+    {
+      "area": "skills",
+      "observation": "The gateway-surface-worker skill is ambiguous for assurance-only compatibility features that mainly add coverage. It requires 'failing tests first', but this worker reported `followedProcedure=true` even though the feature work was adding tests for already-working behavior and the record does not distinguish that justified exception.",
+      "evidence": "/var/home/milton/Workspaces/M/giro/.factory/skills/gateway-surface-worker/SKILL.md:21-30 requires failing tests first and then live validation; /home/milton/.factory/missions/0d379347-5b34-4fb5-830f-2b6650044b7f/handoffs/2026-03-29T20-59-24-645Z__openai-surface-compatibility-under-autodetection__9cd7b17c-c2dd-4422-8186-ba959c55c1d6.json:11 and :129 say the worker only added tests/manual validation and still marked followedProcedure=true."
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "Fail. I reviewed the transcript skeleton and commit 3220952c83705e666d65047bd14f36a618c4ed84 and found one blocking review issue: the new VAL-OPENAI-003 test does not actually verify that an advertised `/v1/models` ID survives into the chat-completions request path, so the feature's claimed OpenAI assertion coverage is incomplete."
+}

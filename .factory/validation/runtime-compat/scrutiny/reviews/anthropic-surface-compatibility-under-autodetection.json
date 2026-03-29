@@ -1,0 +1,33 @@
+{
+  "featureId": "anthropic-surface-compatibility-under-autodetection",
+  "reviewedAt": "2026-03-29T21:23:23.557969+00:00",
+  "commitId": "c772e08b1001f8c2d12baf58a1a530834f00f8c9",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "fail",
+  "codeReview": {
+    "summary": "The added Anthropic surface tests cover malformed JSON, streaming lifecycle, tool-use framing, and auth envelopes well, but the new tool-result continuation coverage does not actually verify that the continuation payload survives conversion and reaches the upstream request.",
+    "issues": [
+      {
+        "file": "internal/handler/anthropic_integration_test.go",
+        "line": 394,
+        "severity": "blocking",
+        "description": "`TestAnthropicHandler_Messages_ToolResultContinuation` never inspects the request sent to the mock Kiro server; it always returns a canned text response (`fmt.Fprint(... \"The weather is sunny...\")`). That means the test still passes if Anthropic `tool_result` blocks are dropped or malformed during conversion, so VAL-ANTHROPIC-006 is not actually being asserted."
+      }
+    ]
+  },
+  "sharedStateObservations": [
+    {
+      "area": "skills",
+      "observation": "The worker marked `skillFeedback.followedProcedure=true`, but the transcript does not show the required pre-edit reads of `.factory/library/architecture.md` or `.factory/library/user-testing.md` from `gateway-surface-worker` step 1.",
+      "evidence": "`.factory/skills/gateway-surface-worker/SKILL.md` step 1 requires reading both library docs before editing. The transcript for worker session `12fd47e6-0223-44ce-8ae1-8ef26fba1460` shows reads for mission/config/code files before the first edits to `internal/handler/anthropic_integration_test.go` and `internal/server/server_test.go`, but no reads of those two library files."
+    },
+    {
+      "area": "knowledge",
+      "observation": "The shared validation guidance can steer autodetection-scoped workers toward explicit-source startup instead of resolved-source startup.",
+      "evidence": "`.factory/library/user-testing.md` publishes a concrete boot command with `KIRO_CLI_DB_FILE=$HOME/.local/share/kiro-cli/data.sqlite3`. This worker used that explicit-source pattern in the transcript/handoff (`HOST=127.0.0.1 PORT=8080 PROXY_API_KEY=giro-validation-key KIRO_CLI_DB_FILE=\"$HOME/.local/share/kiro-cli/data.sqlite3\" go run ./cmd/giro`) while validating an `under-autodetection` feature."
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "Review failed: the new suite does not actually prove Anthropic tool-result continuation, because the VAL-ANTHROPIC-006 test accepts any canned upstream text response without checking the forwarded continuation payload."
+}

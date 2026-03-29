@@ -27,14 +27,19 @@ Run against one live process whenever the milestone/feature requires full-path v
 8. tool use
 9. vision
 
-### Concrete local boot command
-`HOST=127.0.0.1 PORT=8080 PROXY_API_KEY=giro-validation-key KIRO_CLI_DB_FILE=$HOME/.local/share/kiro-cli/data.sqlite3 go run ./cmd/giro`
+### Concrete boot commands
+- Explicit-source boot (use when the assertion specifically targets env-backed selection):
+  `HOST=127.0.0.1 PORT=8080 PROXY_API_KEY=giro-validation-key KIRO_CLI_DB_FILE=$HOME/.local/share/kiro-cli/data.sqlite3 go run ./cmd/giro`
+- Resolved-source boot (use for autodetection/resolved-source assertions on machines with a healthy default local store):
+  `HOST=127.0.0.1 PORT=8080 PROXY_API_KEY=giro-validation-key go run ./cmd/giro`
 
 ### Validation notes
 - `/health` must remain unauthenticated.
 - `/v1/models` and `/v1/chat/completions` use OpenAI-style auth/error contracts.
 - `/v1/messages` uses Anthropic-style auth/error contracts and accepts `x-api-key` or Bearer.
 - Advanced paths must be validated through the live process, not only by unit tests: tool use, vision, and cross-protocol same-run behavior.
+- For autodetection-scoped validation, do not force `KIRO_CLI_DB_FILE`; let startup resolve the default store so the evidence reflects real resolved-source behavior.
+- Live vision validation should use a non-trivial image fixture (for example a `10x10` PNG or larger); tiny `1x1` images can be rejected upstream as an improperly formed request even when base64 wiring is correct.
 
 ## Validation Concurrency
 

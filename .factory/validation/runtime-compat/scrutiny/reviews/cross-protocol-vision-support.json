@@ -1,0 +1,26 @@
+{
+  "featureId": "cross-protocol-vision-support",
+  "reviewedAt": "2026-03-29T21:19:10Z",
+  "commitId": "9ad54d9fd0b04adb1f9978b98e41d39ca26d8cfa",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "Pass. The commit adds targeted handler coverage for OpenAI and Anthropic vision requests, including streaming and history-image paths, and those tests align with the existing shared conversion pipeline. I found no high-confidence actionable defects in the changed code that would undermine the feature's stated behavior.",
+    "issues": []
+  },
+  "sharedStateObservations": [
+    {
+      "area": "skills",
+      "observation": "The gateway-surface-worker skill is too rigid about 'failing tests first' for assurance-only features. In this feature the worker verified that the implementation already handled vision correctly and added coverage around that behavior, but the skill gives no clear guidance for recording that justified exception.",
+      "evidence": "/var/home/milton/Workspaces/M/giro/.factory/skills/gateway-surface-worker/SKILL.md:20-23 requires translating fulfills into failing tests first; /home/milton/.factory/missions/0d379347-5b34-4fb5-830f-2b6650044b7f/handoffs/2026-03-29T21-13-43-565Z__cross-protocol-vision-support__6e841a0e-8cc4-49e3-ba85-ebf318eaf82b.json:115-120 records followedProcedure=true while also noting that the tests passed immediately because the conversion pipeline already worked."
+    },
+    {
+      "area": "knowledge",
+      "observation": "The shared validation notes do not capture the upstream Kiro image-size constraint discovered during live vision validation. That gap forced the worker to debug a 400 response before learning that tiny 1x1 fixtures are rejected and a larger image is needed for real-path proof.",
+      "evidence": "/home/milton/.factory/missions/0d379347-5b34-4fb5-830f-2b6650044b7f/handoffs/2026-03-29T21-13-43-565Z__cross-protocol-vision-support__6e841a0e-8cc4-49e3-ba85-ebf318eaf82b.json:43-48 shows the successful 10x10 red PNG live validation; the same handoff at lines 109-112 records that 1x1 images were rejected as 'Improperly formed request'; /var/home/milton/Workspaces/M/giro/.factory/library/user-testing.md:28-37 documents vision validation generally but does not note this runtime constraint."
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "Pass. I reviewed the transcript skeleton and commit 9ad54d9fd0b04adb1f9978b98e41d39ca26d8cfa and found no blocking or non-blocking code defects in the feature implementation; I only noted a skill-guidance gap for test-first exceptions and a missing shared note about Kiro rejecting tiny 1x1 images during real vision validation."
+}
