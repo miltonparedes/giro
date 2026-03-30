@@ -7,7 +7,7 @@ set -eu
 #   curl -fsSL ... | INSTALL_DIR=~/.local/bin sh
 
 REPO="miltonparedes/giro"
-INSTALL_DIR="${INSTALL_DIR:-/usr/local/bin}"
+INSTALL_DIR="${INSTALL_DIR:-$HOME/.local/bin}"
 
 fail() { printf '\033[1;31merror:\033[0m %s\n' "$1" >&2; exit 1; }
 info() { printf '\033[1;34m==>\033[0m %s\n' "$1"; }
@@ -32,9 +32,17 @@ case "$OS" in
 esac
 
 case "$ARCH" in
-  x86_64|amd64)  ARCH="x86_64" ;;
-  arm64|aarch64) ARCH="arm64" ;;
-  *)             fail "unsupported architecture: $ARCH" ;;
+  x86_64|amd64)
+    DISPLAY_ARCH="x86_64"
+    ASSET_ARCH="amd64"
+    ;;
+  arm64|aarch64)
+    DISPLAY_ARCH="arm64"
+    ASSET_ARCH="arm64"
+    ;;
+  *)
+    fail "unsupported architecture: $ARCH"
+    ;;
 esac
 
 # --- resolve latest version ---
@@ -52,11 +60,11 @@ fi
 VERSION="${LATEST##*/}"
 [ -n "$VERSION" ] || fail "could not determine latest version"
 
-info "installing giro $VERSION (${DISPLAY_OS}/${ARCH})"
+info "installing giro $VERSION (${DISPLAY_OS}/${DISPLAY_ARCH})"
 
 # --- download & extract ---
 
-ARCHIVE="giro_${VERSION#v}_${ASSET_OS}_${ARCH}.tar.gz"
+ARCHIVE="giro_${VERSION#v}_${ASSET_OS}_${ASSET_ARCH}.tar.gz"
 URL="https://github.com/$REPO/releases/download/${VERSION}/${ARCHIVE}"
 TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TMPDIR"' EXIT
@@ -71,6 +79,10 @@ tar xzf "$TMPDIR/$ARCHIVE" -C "$TMPDIR"
 [ -f "$TMPDIR/giro" ] || fail "archive did not contain a 'giro' binary"
 
 # --- install ---
+
+if [ ! -d "$INSTALL_DIR" ]; then
+  mkdir -p "$INSTALL_DIR"
+fi
 
 if [ -w "$INSTALL_DIR" ]; then
   mv "$TMPDIR/giro" "$INSTALL_DIR/giro"
