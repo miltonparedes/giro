@@ -19,6 +19,10 @@ import (
 	"github.com/miltonparedes/giro/internal/server"
 )
 
+// testPNGBase64 is a valid 10×10 solid red PNG for vision tests.
+// Truncated or 1×1 images cause "Improperly formed request" on the real Kiro upstream.
+const testPNGBase64 = "iVBORw0KGgoAAAANSUhEUgAAAAoAAAAKCAIAAAACUFjqAAAAEklEQVR4nGP4z8CAB+GTG8HSALfKY52fTcuYAAAAAElFTkSuQmCC"
+
 func newMockAuthManager(t *testing.T, apiHost, qHost string) *auth.KiroAuthManager {
 	t.Helper()
 
@@ -175,6 +179,84 @@ func TestE2EMock_OpenAIAndAnthropic(t *testing.T) {
 		}
 		if !strings.Contains(string(respBody), "event: message_stop") {
 			t.Fatalf("missing message_stop event in stream body: %s", string(respBody))
+		}
+	})
+
+	// OpenAI base64 vision via e2e mock (valid 10x10 PNG).
+	t.Run("openai vision non-stream", func(t *testing.T) {
+		body := `{
+			"model": "claude-sonnet-4",
+			"messages": [{
+				"role": "user",
+				"content": [
+					{"type": "text", "text": "What is in this image?"},
+					{"type": "image_url", "image_url": {"url": "data:image/png;base64,` + testPNGBase64 + `"}}
+				]
+			}],
+			"stream": false
+		}`
+		req, err := http.NewRequest(http.MethodPost, gateway.URL+"/v1/chat/completions", strings.NewReader(body))
+		if err != nil {
+			t.Fatalf("new request: %v", err)
+		}
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Authorization", "Bearer e2e-key")
+
+		resp, err := client.Do(req)
+		if err != nil {
+			t.Fatalf("do request: %v", err)
+		}
+		defer func() { _ = resp.Body.Close() }()
+
+		respBody, _ := io.ReadAll(resp.Body)
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("status = %d, want %d, body=%s", resp.StatusCode, http.StatusOK, string(respBody))
+		}
+		if !strings.Contains(string(respBody), `"choices"`) {
+			t.Fatalf("unexpected body: %s", string(respBody))
+		}
+	})
+
+	// Anthropic base64 vision via e2e mock (valid 10x10 PNG).
+	t.Run("anthropic vision non-stream", func(t *testing.T) {
+		body := `{
+			"model": "claude-sonnet-4",
+			"max_tokens": 64,
+			"messages": [{
+				"role": "user",
+				"content": [
+					{"type": "text", "text": "What is in this image?"},
+					{
+						"type": "image",
+						"source": {
+							"type": "base64",
+							"media_type": "image/png",
+							"data": "` + testPNGBase64 + `"
+						}
+					}
+				]
+			}],
+			"stream": false
+		}`
+		req, err := http.NewRequest(http.MethodPost, gateway.URL+"/v1/messages", strings.NewReader(body))
+		if err != nil {
+			t.Fatalf("new request: %v", err)
+		}
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("x-api-key", "e2e-key")
+
+		resp, err := client.Do(req)
+		if err != nil {
+			t.Fatalf("do request: %v", err)
+		}
+		defer func() { _ = resp.Body.Close() }()
+
+		respBody, _ := io.ReadAll(resp.Body)
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("status = %d, want %d, body=%s", resp.StatusCode, http.StatusOK, string(respBody))
+		}
+		if !strings.Contains(string(respBody), `"type":"message"`) {
+			t.Fatalf("unexpected body: %s", string(respBody))
 		}
 	})
 }

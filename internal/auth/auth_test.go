@@ -1247,6 +1247,316 @@ func TestHTTPError(t *testing.T) {
 	}
 }
 
+// --- Refresh and persistence for autodetected sources ---
+
+// writeSQLiteStaleToken updates an existing kiro-cli SQLite token row with
+// stale (expired) token data so the next GetAccessToken triggers a refresh.
+func writeSQLiteStaleToken(t *testing.T, dbPath, tokenKey, access, refresh string) {
+	t.Helper()
+	data := mustJSON(t, map[string]interface{}{
+		"access_token":  access,
+		"refresh_token": refresh,
+		"expires_at":    time.Now().UTC().Add(-time.Hour).Format(time.RFC3339),
+	})
+	db, err := sql.Open("sqlite", dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = db.Close() }()
+	if _, err := db.Exec("UPDATE auth_kv SET value = ? WHERE key = ?", data, tokenKey); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// insertSQLiteRow inserts or replaces a key/value pair in the auth_kv table.
+func insertSQLiteRow(t *testing.T, dbPath, key, value string) {
+	t.Helper()
+	db, err := sql.Open("sqlite", dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = db.Close() }()
+	if _, err := db.Exec("INSERT OR REPLACE INTO auth_kv (key, value) VALUES (?, ?)", key, value); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// readSQLiteTokenField reads a single field from the JSON-encoded token row.
+func readSQLiteTokenField(t *testing.T, dbPath, tokenKey, field string) string {
+	t.Helper()
+	db, err := sql.Open("sqlite", dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = db.Close() }()
+	var raw string
+	if err := db.QueryRow("SELECT value FROM auth_kv WHERE key = ?", tokenKey).Scan(&raw); err != nil {
+		t.Fatal(err)
+	}
+	var m map[string]interface{}
+	if err := json.Unmarshal([]byte(raw), &m); err != nil {
+		t.Fatal(err)
+	}
+	v, _ := m[field].(string)
+	return v
+}
+
+// newMockDesktopRefreshServer returns a mock server that responds with
+// the given access and refresh tokens (Kiro Desktop format).
+func newMockDesktopRefreshServer(t *testing.T, access, refresh string) *httptest.Server {
+	t.Helper()
+	return mockRefreshServer(t, func(w http.ResponseWriter, _ *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"accessToken":  access,
+			"refreshToken": refresh,
+			"expiresIn":    3600,
+		})
+	})
+}
+
+// resolveAndBuildManager resolves the source for the given home, constructs
+// an auth manager, and returns both.
+func resolveAndBuildManager(t *testing.T, homeDir string) (*ResolvedSource, *KiroAuthManager) {
+	t.Helper()
+	resolved, err := ResolveSource(ResolveInput{HomeDir: homeDir})
+	if err != nil {
+		t.Fatal(err)
+	}
+	opts := resolved.BuildAuthOptions("", "", "us-east-1", "")
+	m, err := NewKiroAuthManager(opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return resolved, m
+}
+
+// TestAutodetectedKiroCLI_RefreshPersistAndRestart verifies that an
+// autodetected kiro-cli source refreshes a stale token, persists the
+// refreshed credentials back to the same SQLite store, and on restart
+// (new auth manager from the same autodetected path) the persisted tokens
+// are available without manual reconfiguration.
+func TestAutodetectedKiroCLI_RefreshPersistAndRestart(t *testing.T) {
+	homeDir := t.TempDir()
+	dbPath := createTempKiroCLIStore(t, homeDir)
+	writeSQLiteStaleToken(t, dbPath, "kirocli:social:token", "stale-access", "valid-refresh")
+
+	ts := newMockDesktopRefreshServer(t, "refreshed-access", "refreshed-refresh")
+	resolved, m := resolveAndBuildManager(t, homeDir)
+	m.refreshURL = ts.URL
+
+	// Verify autodetected source metadata.
+	if resolved.Kind != SourceKiroCLI || resolved.Path != dbPath || !resolved.Writable {
+		t.Fatalf("source mismatch: Kind=%q Path=%q Writable=%v", resolved.Kind, resolved.Path, resolved.Writable)
+	}
+
+	// Refresh: token is stale so GetAccessToken should call the mock.
+	token, err := m.GetAccessToken(context.Background())
+	if err != nil {
+		t.Fatalf("GetAccessToken failed: %v", err)
+	}
+	if token != "refreshed-access" {
+		t.Errorf("token = %q, want %q", token, "refreshed-access")
+	}
+
+	// Persistence: same SQLite path should contain the refreshed values.
+	if got := readSQLiteTokenField(t, dbPath, "kirocli:social:token", "access_token"); got != "refreshed-access" {
+		t.Errorf("persisted access_token = %q, want %q", got, "refreshed-access")
+	}
+	if got := readSQLiteTokenField(t, dbPath, "kirocli:social:token", "refresh_token"); got != "refreshed-refresh" {
+		t.Errorf("persisted refresh_token = %q, want %q", got, "refreshed-refresh")
+	}
+
+	// Restart: a new auth manager from the same home picks up the persisted tokens.
+	_, m2 := resolveAndBuildManager(t, homeDir)
+	if m2.accessToken != "refreshed-access" {
+		t.Errorf("restart: accessToken = %q, want %q", m2.accessToken, "refreshed-access")
+	}
+	if m2.refreshToken != "refreshed-refresh" {
+		t.Errorf("restart: refreshToken = %q, want %q", m2.refreshToken, "refreshed-refresh")
+	}
+	if m2.isTokenExpiringSoon() {
+		t.Error("restart: token should NOT be expiring soon after loading freshly persisted credentials")
+	}
+}
+
+// TestAutodetectedKiroIDE_RefreshPersistAndRestart verifies the same
+// lifecycle for an autodetected kiro-ide (JSON credentials file) source.
+func TestAutodetectedKiroIDE_RefreshPersistAndRestart(t *testing.T) {
+	homeDir := t.TempDir()
+	staleContent := mustJSON(t, map[string]interface{}{
+		"refreshToken": "valid-refresh",
+		"accessToken":  "stale-access",
+		"expiresAt":    time.Now().UTC().Add(-time.Hour).Format(time.RFC3339),
+	})
+	storePath := createTempKiroIDEStoreWithContent(t, homeDir, staleContent)
+
+	ts := newMockDesktopRefreshServer(t, "refreshed-access", "refreshed-refresh")
+	resolved, m := resolveAndBuildManager(t, homeDir)
+	m.refreshURL = ts.URL
+
+	if resolved.Kind != SourceKiroIDE || resolved.Path != storePath || !resolved.Writable {
+		t.Fatalf("source mismatch: Kind=%q Path=%q Writable=%v", resolved.Kind, resolved.Path, resolved.Writable)
+	}
+
+	// Refresh.
+	token, err := m.GetAccessToken(context.Background())
+	if err != nil {
+		t.Fatalf("GetAccessToken failed: %v", err)
+	}
+	if token != "refreshed-access" {
+		t.Errorf("token = %q, want %q", token, "refreshed-access")
+	}
+
+	// Persistence: same JSON file should contain the refreshed values.
+	rawData, err := os.ReadFile(storePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var saved map[string]interface{}
+	if err := json.Unmarshal(rawData, &saved); err != nil {
+		t.Fatal(err)
+	}
+	if saved["accessToken"] != "refreshed-access" {
+		t.Errorf("persisted accessToken = %q, want %q", saved["accessToken"], "refreshed-access")
+	}
+	if saved["refreshToken"] != "refreshed-refresh" {
+		t.Errorf("persisted refreshToken = %q, want %q", saved["refreshToken"], "refreshed-refresh")
+	}
+
+	// Restart.
+	_, m2 := resolveAndBuildManager(t, homeDir)
+	if m2.accessToken != "refreshed-access" || m2.refreshToken != "refreshed-refresh" {
+		t.Errorf("restart: accessToken=%q refreshToken=%q", m2.accessToken, m2.refreshToken)
+	}
+	if m2.isTokenExpiringSoon() {
+		t.Error("restart: token should NOT be expiring soon after loading freshly persisted credentials")
+	}
+}
+
+// TestAutodetectedKiroCLI_AWSSSO_RefreshPersistAndRestart verifies the
+// lifecycle for an autodetected kiro-cli source using AWS SSO OIDC
+// (with device registration), including refresh, persistence, and restart.
+func TestAutodetectedKiroCLI_AWSSSO_RefreshPersistAndRestart(t *testing.T) {
+	homeDir := t.TempDir()
+	dbPath := createTempKiroCLIStore(t, homeDir)
+
+	// Stale token without region so SQLite reload does not override mock URL.
+	writeSQLiteStaleToken(t, dbPath, "kirocli:social:token", "stale-sso-access", "valid-sso-refresh")
+	regData := mustJSON(t, map[string]interface{}{
+		"client_id":     "sso-client-id",
+		"client_secret": "sso-client-secret",
+	})
+	insertSQLiteRow(t, dbPath, "kirocli:odic:device-registration", regData)
+
+	ts := mockRefreshServer(t, func(w http.ResponseWriter, _ *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"accessToken":  "refreshed-sso-access",
+			"refreshToken": "refreshed-sso-refresh",
+			"expiresIn":    3600,
+		})
+	})
+
+	_, m := resolveAndBuildManager(t, homeDir)
+	if m.authType != AWSSSO {
+		t.Fatalf("authType = %v, want AWSSSO", m.authType)
+	}
+	m.ssoOIDCURL = ts.URL
+
+	// Refresh via SSO OIDC.
+	token, err := m.GetAccessToken(context.Background())
+	if err != nil {
+		t.Fatalf("GetAccessToken failed: %v", err)
+	}
+	if token != "refreshed-sso-access" {
+		t.Errorf("token = %q, want %q", token, "refreshed-sso-access")
+	}
+
+	// Persistence.
+	if got := readSQLiteTokenField(t, dbPath, "kirocli:social:token", "access_token"); got != "refreshed-sso-access" {
+		t.Errorf("persisted access_token = %q, want %q", got, "refreshed-sso-access")
+	}
+
+	// Restart.
+	_, m2 := resolveAndBuildManager(t, homeDir)
+	if m2.accessToken != "refreshed-sso-access" || m2.refreshToken != "refreshed-sso-refresh" {
+		t.Errorf("restart: accessToken=%q refreshToken=%q", m2.accessToken, m2.refreshToken)
+	}
+	if m2.authType != AWSSSO {
+		t.Errorf("restart: authType = %v, want AWSSSO", m2.authType)
+	}
+}
+
+// TestAutodetectedSourcePersistenceDoesNotJumpStores verifies that when
+// kiro-cli wins autodetection and tokens are refreshed, the persistence
+// writes only to the kiro-cli store and does NOT modify the kiro-ide store.
+func TestAutodetectedSourcePersistenceDoesNotJumpStores(t *testing.T) {
+	homeDir := t.TempDir()
+	dbPath := createTempKiroCLIStore(t, homeDir)
+	writeSQLiteStaleToken(t, dbPath, "kirocli:social:token", "stale-access", "valid-refresh")
+
+	ideOriginal := `{"refreshToken":"ide-original-refresh","accessToken":"ide-original-access"}`
+	idePath := createTempKiroIDEStoreWithContent(t, homeDir, ideOriginal)
+
+	ts := newMockDesktopRefreshServer(t, "refreshed-access", "refreshed-refresh")
+	resolved, m := resolveAndBuildManager(t, homeDir)
+	m.refreshURL = ts.URL
+
+	if resolved.Kind != SourceKiroCLI {
+		t.Fatalf("Kind = %q, want %q", resolved.Kind, SourceKiroCLI)
+	}
+
+	if _, err := m.GetAccessToken(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+
+	// kiro-ide store must be untouched.
+	ideData, err := os.ReadFile(idePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(ideData) != ideOriginal {
+		t.Errorf("kiro-ide store was modified; persistence jumped stores.\noriginal: %s\n     got: %s", ideOriginal, string(ideData))
+	}
+}
+
+// TestAutodetectedKiroCLI_RefreshPersistenceStableSourcePath verifies that
+// the resolved source path is identical before and after a refresh cycle,
+// confirming the write-back target does not drift.
+func TestAutodetectedKiroCLI_RefreshPersistenceStableSourcePath(t *testing.T) {
+	homeDir := t.TempDir()
+	createTempKiroCLIStore(t, homeDir)
+
+	src1, err := ResolveSource(ResolveInput{HomeDir: homeDir})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Simulate a refresh+persist cycle by updating token data on disk.
+	newToken := mustJSON(t, map[string]interface{}{
+		"access_token":  "after-refresh",
+		"refresh_token": "after-refresh-rt",
+		"expires_at":    time.Now().UTC().Add(time.Hour).Format(time.RFC3339),
+	})
+	db, err := sql.Open("sqlite", src1.Path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec("UPDATE auth_kv SET value = ? WHERE key = ?", newToken, "kirocli:social:token"); err != nil {
+		_ = db.Close()
+		t.Fatal(err)
+	}
+	_ = db.Close()
+
+	// Second resolution: source metadata must be identical.
+	src2, err := ResolveSource(ResolveInput{HomeDir: homeDir})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if src1.Kind != src2.Kind || src1.Path != src2.Path || src1.Writable != src2.Writable {
+		t.Errorf("source drifted: %+v → %+v", src1, src2)
+	}
+}
+
 // --- helper ---
 
 func hasPrefix(s, prefix string) bool {

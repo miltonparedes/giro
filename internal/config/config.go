@@ -2,7 +2,6 @@
 package config
 
 import (
-	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -162,13 +161,9 @@ func Load() Config {
 	}
 }
 
-// Validate checks that the configuration is usable. It returns an error if no
-// credential source is configured and logs a warning when timeout values look
-// suspect.
+// Validate checks that non-credential configuration is usable. Credential
+// source validation is handled by the auth.ResolveSource resolution layer.
 func (c Config) Validate() error {
-	if c.RefreshToken == "" && c.KiroCredsFile == "" && c.KiroCLIDBFile == "" {
-		return errors.New("at least one credential source required: set REFRESH_TOKEN, KIRO_CREDS_FILE, or KIRO_CLI_DB_FILE")
-	}
 	if c.FirstTokenTimeout >= c.StreamingReadTimeout {
 		slog.Warn("suboptimal timeout configuration: FIRST_TOKEN_TIMEOUT should be less than STREAMING_READ_TIMEOUT",
 			"first_token_timeout", c.FirstTokenTimeout,

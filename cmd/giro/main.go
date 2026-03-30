@@ -41,6 +41,20 @@ func main() {
 
 	cfg.PropagateVPNProxy()
 
+	resolved, err := auth.ResolveSource(auth.ResolveInput{
+		KiroCLIDBFile: cfg.KiroCLIDBFile,
+		KiroCredsFile: cfg.KiroCredsFile,
+		RefreshToken:  cfg.RefreshToken,
+	})
+	if err != nil {
+		slog.Error("credential resolution failed", "err", err)
+		os.Exit(1)
+	}
+	slog.Info("credential source resolved",
+		"source", string(resolved.Kind),
+		"path", resolved.Path,
+	)
+
 	sharedClient := &http.Client{
 		Transport: &http.Transport{
 			MaxIdleConns:        config.MaxIdleConns,
@@ -50,14 +64,9 @@ func main() {
 		Timeout: 300 * time.Second, //nolint:gosec // long timeout for streaming
 	}
 
-	authManager, err := auth.NewKiroAuthManager(auth.Options{
-		RefreshToken: cfg.RefreshToken,
-		ProfileARN:   cfg.ProfileARN,
-		Region:       cfg.KiroRegion,
-		CredsFile:    cfg.KiroCredsFile,
-		SQLiteDB:     cfg.KiroCLIDBFile,
-		VPNProxyURL:  cfg.VPNProxyURL,
-	})
+	authManager, err := auth.NewKiroAuthManager(
+		resolved.BuildAuthOptions(cfg.RefreshToken, cfg.ProfileARN, cfg.KiroRegion, cfg.VPNProxyURL),
+	)
 	if err != nil {
 		slog.Error("failed to create auth manager", "err", err)
 		os.Exit(1)
