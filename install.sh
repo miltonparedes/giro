@@ -18,9 +18,17 @@ OS="$(uname -s)"
 ARCH="$(uname -m)"
 
 case "$OS" in
-  Linux)  OS="Linux" ;;
-  Darwin) OS="Darwin" ;;
-  *)      fail "unsupported OS: $OS" ;;
+  Linux)
+    DISPLAY_OS="Linux"
+    ASSET_OS="linux"
+    ;;
+  Darwin)
+    DISPLAY_OS="Darwin"
+    ASSET_OS="darwin"
+    ;;
+  *)
+    fail "unsupported OS: $OS"
+    ;;
 esac
 
 case "$ARCH" in
@@ -44,19 +52,19 @@ fi
 VERSION="${LATEST##*/}"
 [ -n "$VERSION" ] || fail "could not determine latest version"
 
-info "installing giro $VERSION (${OS}/${ARCH})"
+info "installing giro $VERSION (${DISPLAY_OS}/${ARCH})"
 
 # --- download & extract ---
 
-ARCHIVE="giro_${OS}_${ARCH}.tar.gz"
+ARCHIVE="giro_${VERSION#v}_${ASSET_OS}_${ARCH}.tar.gz"
 URL="https://github.com/$REPO/releases/download/${VERSION}/${ARCHIVE}"
 TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TMPDIR"' EXIT
 
 if command -v curl >/dev/null 2>&1; then
-  curl -fsSL "$URL" -o "$TMPDIR/$ARCHIVE" || fail "download failed — check that $VERSION has a release for ${OS}/${ARCH}"
+  curl -fsSL "$URL" -o "$TMPDIR/$ARCHIVE" || fail "download failed from $URL"
 else
-  wget -q "$URL" -O "$TMPDIR/$ARCHIVE" || fail "download failed — check that $VERSION has a release for ${OS}/${ARCH}"
+  wget -q "$URL" -O "$TMPDIR/$ARCHIVE" || fail "download failed from $URL"
 fi
 
 tar xzf "$TMPDIR/$ARCHIVE" -C "$TMPDIR"
