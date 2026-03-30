@@ -25,3 +25,6 @@ coverage.html
 # OS
 .DS_Store
 Thumbs.db
+
+# Factory (droid scaffolding — not part of the project)
+.factory/
