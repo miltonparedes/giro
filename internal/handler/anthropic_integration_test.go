@@ -209,9 +209,9 @@ func TestAnthropicHandler_Messages_FirstTokenRetry_Exhausted(t *testing.T) {
 	}
 }
 
-// --- VAL-ANTHROPIC assertion-targeted tests --------------------------------
+// --- Anthropic assertion-targeted tests ------------------------------------
 
-// VAL-ANTHROPIC-001: Non-stream /v1/messages succeeds with correct response shape.
+// Non-stream /v1/messages succeeds with correct response shape.
 func TestAnthropicHandler_Messages_NonStream_FullResponseShape(t *testing.T) {
 	kiro := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -257,7 +257,7 @@ func TestAnthropicHandler_Messages_NonStream_FullResponseShape(t *testing.T) {
 	}
 }
 
-// VAL-ANTHROPIC-003: Malformed JSON yields an Anthropic-style error envelope.
+// Malformed JSON yields an Anthropic-style error envelope.
 func TestAnthropicHandler_Messages_MalformedJSON_ErrorEnvelope(t *testing.T) {
 	h := NewAnthropicHandler(
 		newTestAuthManager(t, "http://127.0.0.1:1", "http://127.0.0.1:1"),
@@ -296,7 +296,7 @@ func TestAnthropicHandler_Messages_MalformedJSON_ErrorEnvelope(t *testing.T) {
 	}
 }
 
-// VAL-ANTHROPIC-004: Streaming /v1/messages returns the full Anthropic SSE lifecycle.
+// Streaming /v1/messages returns the full Anthropic SSE lifecycle.
 func TestAnthropicHandler_Messages_Stream_FullLifecycle(t *testing.T) {
 	kiro := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -327,7 +327,7 @@ func TestAnthropicHandler_Messages_Stream_FullLifecycle(t *testing.T) {
 	assertAnthropicSSELifecycle(t, events)
 }
 
-// VAL-ANTHROPIC-005: Anthropic tool use returns a tool_use block with stop_reason tool_use.
+// Anthropic tool use returns a tool_use block with stop_reason tool_use.
 func TestAnthropicHandler_Messages_NonStream_ToolUse(t *testing.T) {
 	kiro := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -390,7 +390,7 @@ func TestAnthropicHandler_Messages_NonStream_ToolUse(t *testing.T) {
 	}
 }
 
-// VAL-ANTHROPIC-006: Tool-result continuation forwards tool_use, toolUseId,
+// Tool-result continuation forwards tool_use, toolUseId,
 // and tool_result intact to Kiro, not just returning a successful surface response.
 func TestAnthropicHandler_Messages_ToolResultContinuation(t *testing.T) {
 	var capturedPayload map[string]any
@@ -440,7 +440,7 @@ func TestAnthropicHandler_Messages_ToolResultContinuation(t *testing.T) {
 	// --- Surface response assertions ---
 	assertToolResultContinuationSurface(t, rr.Body.Bytes())
 
-	// --- Outbound Kiro payload assertions (strengthened for VAL-ANTHROPIC-006) ---
+	// --- Outbound Kiro payload assertions (strengthened for tool-result continuation) ---
 	if capturedPayload == nil {
 		t.Fatal("kiro mock did not receive any request payload")
 	}
@@ -566,7 +566,7 @@ func assertKiroCurrentMessageContainsToolResult(t *testing.T, convState map[stri
 	t.Fatal("kiro payload missing toolResult with toolUseId=toolu_abc")
 }
 
-// VAL-ANTHROPIC-008: Streamed Anthropic tool use preserves the tool-use SSE lifecycle.
+// Streamed Anthropic tool use preserves the tool-use SSE lifecycle.
 func TestAnthropicHandler_Messages_Stream_ToolUse(t *testing.T) {
 	kiro := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -745,7 +745,7 @@ func assertAnthropicStreamToolUseLifecycle(t *testing.T, events []anthropicSSEEv
 	}
 }
 
-// VAL-ANTHROPIC-009: Anthropic base64 vision inputs produce image-grounded responses.
+// Anthropic base64 vision inputs produce image-grounded responses.
 func TestAnthropicHandler_Messages_NonStream_Vision(t *testing.T) {
 	var receivedImages bool
 	kiro := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -824,7 +824,7 @@ func TestAnthropicHandler_Messages_NonStream_Vision(t *testing.T) {
 	}
 }
 
-// VAL-ANTHROPIC-009: Anthropic base64 vision inputs work in streaming mode.
+// Anthropic base64 vision inputs work in streaming mode.
 func TestAnthropicHandler_Messages_Stream_Vision(t *testing.T) {
 	var receivedImages bool
 	kiro := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -887,7 +887,7 @@ func TestAnthropicHandler_Messages_Stream_Vision(t *testing.T) {
 	assertAnthropicSSELifecycle(t, events)
 }
 
-// VAL-ANTHROPIC-009: Anthropic vision with history images preserves images in Kiro history.
+// Anthropic vision with history images preserves images in Kiro history.
 func TestAnthropicHandler_Messages_Vision_History(t *testing.T) {
 	var receivedHistoryImages bool
 	kiro := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

@@ -286,7 +286,7 @@ func TestResolveSource_AutodetectKiroCLI_MissingStore(t *testing.T) {
 
 // --- ResolveSource: kiro-ide autodetection tests ---
 
-// VAL-STARTUP-005: giro autodetects and uses the default kiro-ide store.
+// giro autodetects and uses the default kiro-ide store.
 func TestResolveSource_AutodetectKiroIDE(t *testing.T) {
 	homeDir := t.TempDir()
 	storePath := createTempKiroIDEStore(t, homeDir)
@@ -330,7 +330,7 @@ func TestResolveSource_AutodetectKiroIDE_MissingStore(t *testing.T) {
 
 // --- ResolveSource: autodetected precedence tests ---
 
-// VAL-STARTUP-006: When both autodetected stores are healthy, kiro-cli wins
+// When both autodetected stores are healthy, kiro-cli wins
 // deterministically.
 func TestResolveSource_AutodetectKiroCLIWinsOverKiroIDE(t *testing.T) {
 	homeDir := t.TempDir()
@@ -354,7 +354,7 @@ func TestResolveSource_AutodetectKiroCLIWinsOverKiroIDE(t *testing.T) {
 	}
 }
 
-// VAL-STARTUP-006: Deterministic precedence across repeated runs.
+// Deterministic precedence across repeated runs.
 func TestResolveSource_AutodetectPrecedenceDeterministic(t *testing.T) {
 	homeDir := t.TempDir()
 	createTempKiroCLIStore(t, homeDir)
@@ -382,7 +382,7 @@ func TestResolveSource_AutodetectPrecedenceDeterministic(t *testing.T) {
 
 // --- ResolveSource: autodetected fallback tests ---
 
-// VAL-STARTUP-007: A broken higher-priority autodetected source falls back
+// A broken higher-priority autodetected source falls back
 // safely to the next viable autodetected source.
 func TestResolveSource_BrokenKiroCLIFallsToKiroIDE(t *testing.T) {
 	homeDir := t.TempDir()
@@ -413,7 +413,7 @@ func TestResolveSource_BrokenKiroCLIFallsToKiroIDE(t *testing.T) {
 	}
 }
 
-// VAL-STARTUP-007: Both autodetected sources broken fails closed.
+// Both autodetected sources broken fails closed.
 func TestResolveSource_BothAutodetectedBroken_FailClosed(t *testing.T) {
 	homeDir := t.TempDir()
 
@@ -440,7 +440,7 @@ func TestResolveSource_BothAutodetectedBroken_FailClosed(t *testing.T) {
 	}
 }
 
-// VAL-STARTUP-010: An invalid explicit source falls back safely to
+// An invalid explicit source falls back safely to
 // autodetected kiro-ide.
 func TestResolveSource_InvalidExplicitFallsToAutodetectedKiroIDE(t *testing.T) {
 	homeDir := t.TempDir()
@@ -465,7 +465,7 @@ func TestResolveSource_InvalidExplicitFallsToAutodetectedKiroIDE(t *testing.T) {
 	}
 }
 
-// VAL-STARTUP-012: Enterprise-style kiro-ide store with companion
+// Enterprise-style kiro-ide store with companion
 // registration material resolves successfully.
 func TestResolveSource_EnterpriseKiroIDE(t *testing.T) {
 	homeDir := t.TempDir()
@@ -499,7 +499,7 @@ func TestResolveSource_EnterpriseKiroIDE(t *testing.T) {
 
 // --- ResolveSource: explicit vs autodetected precedence ---
 
-// VAL-STARTUP-003: Explicit environment configuration takes precedence over
+// Explicit environment configuration takes precedence over
 // autodetection (including kiro-ide).
 func TestResolveSource_ExplicitBeatsAutodetected(t *testing.T) {
 	homeDir := t.TempDir()
@@ -807,7 +807,7 @@ func TestResolvedSource_Metadata(t *testing.T) {
 }
 
 // --- ResolveSource: backward-compatible precedence (table-driven) ---
-// VAL-STARTUP-011: KIRO_CLI_DB_FILE > KIRO_CREDS_FILE > REFRESH_TOKEN
+// Backward-compatible precedence: KIRO_CLI_DB_FILE > KIRO_CREDS_FILE > REFRESH_TOKEN
 
 func TestResolveSource_BackwardCompatiblePrecedence(t *testing.T) {
 	dir := t.TempDir()
@@ -882,7 +882,7 @@ func TestResolveSource_BackwardCompatiblePrecedence(t *testing.T) {
 }
 
 // --- ResolveSource: full precedence with kiro-ide (table-driven) ---
-// Covers VAL-STARTUP-003, VAL-STARTUP-006, VAL-STARTUP-007, VAL-STARTUP-010.
+// Covers explicit-beats-autodetected, kiro-cli precedence, broken-source fallback, and invalid-explicit fallback.
 
 func TestResolveSource_FullPrecedenceWithKiroIDE(t *testing.T) {
 	dir := t.TempDir()
@@ -1090,7 +1090,7 @@ func captureLogs(t *testing.T, fn func()) string {
 	return buf.String()
 }
 
-// --- VAL-STARTUP-002: startup logs the selected source and resolved path ---
+// --- Startup logs the selected source and resolved path ---
 
 func TestResolveSource_LogsWinningSourceAndPath(t *testing.T) {
 	tests := []struct {
@@ -1194,7 +1194,7 @@ func TestResolveSource_LogsWinningSourceAndPath(t *testing.T) {
 	}
 }
 
-// --- VAL-STARTUP-008: startup logs never expose credential secrets ---
+// --- Startup logs never expose credential secrets ---
 
 func TestResolveSource_LogsAreSecretSafe(t *testing.T) {
 	secrets := []string{
@@ -1267,7 +1267,7 @@ func TestResolveSource_LogsAreSecretSafe(t *testing.T) {
 	}
 }
 
-// --- VAL-STARTUP-007: rejection logging for broken autodetected sources ---
+// --- Rejection logging for broken autodetected sources ---
 
 func TestResolveSource_BrokenAutodetectedLogsRejection(t *testing.T) {
 	homeDir := t.TempDir()

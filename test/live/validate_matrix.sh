@@ -5,7 +5,7 @@
 # matrix against the real local credential source, and reports pass/fail for
 # each item. Designed to be reusable by mission validators and human operators.
 #
-# Matrix items (VAL-CROSS-001 through VAL-CROSS-005):
+# Matrix items:
 #   1. GET /health (unauthenticated)
 #   2. GET /v1/models (unauthenticated → 401)
 #   3. GET /v1/models (authenticated → 200, auto-kiro + claude-3.7-sonnet)
@@ -398,22 +398,22 @@ main() {
 	echo "── Matrix ──────────────────────────────────────────────────────"
 	echo ""
 
-	# VAL-CROSS-001: Health public, models authenticated
+	# Health public, models authenticated
 	test_health
 	test_models_no_auth
 	test_models_authenticated
 
-	# VAL-CROSS-002 + VAL-CROSS-004: Both protocols, all modes
+	# Both protocols, all modes
 	test_openai_non_stream
 	test_openai_stream
 	test_anthropic_non_stream
 	test_anthropic_stream
 
-	# VAL-CROSS-003: Negative client auth
+	# Negative client auth
 	test_negative_auth_openai
 	test_negative_auth_anthropic
 
-	# VAL-CROSS-005: Advanced — tool use and vision
+	# Advanced: tool use and vision
 	test_tool_use
 	test_vision
 

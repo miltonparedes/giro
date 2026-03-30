@@ -152,7 +152,7 @@ func TestNew_AnthropicAuth_XAPIKeyAndBearer(t *testing.T) {
 	})
 }
 
-// VAL-OPENAI-001: Bearer client auth rejection returns OpenAI error envelope.
+// Bearer client auth rejection returns OpenAI error envelope.
 func TestNew_OpenAI_AuthRejection_ErrorEnvelope(t *testing.T) {
 	r := newRouter(t)
 
@@ -201,7 +201,7 @@ func TestNew_OpenAI_AuthRejection_ErrorEnvelope(t *testing.T) {
 	}
 }
 
-// VAL-OPENAI-002: /v1/models returns a valid OpenAI model-list envelope.
+// /v1/models returns a valid OpenAI model-list envelope.
 func TestNew_Models_Envelope(t *testing.T) {
 	r := newRouter(t)
 
@@ -248,7 +248,7 @@ func TestNew_Models_Envelope(t *testing.T) {
 	}
 }
 
-// VAL-ANTHROPIC-002: Anthropic surface accepts Bearer auth in addition to x-api-key.
+// Anthropic surface accepts Bearer auth in addition to x-api-key.
 func TestNew_Anthropic_BearerAuth_SucceedsWithValidKey(t *testing.T) {
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -285,7 +285,7 @@ func TestNew_Anthropic_BearerAuth_SucceedsWithValidKey(t *testing.T) {
 	}
 }
 
-// VAL-ANTHROPIC-007: Missing or wrong Anthropic client auth returns Anthropic protocol-correct auth errors.
+// Missing or wrong Anthropic client auth returns Anthropic protocol-correct auth errors.
 func TestNew_Anthropic_AuthRejection_ErrorEnvelope(t *testing.T) {
 	r := newRouter(t)
 

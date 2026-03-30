@@ -182,7 +182,7 @@ func TestE2EMock_OpenAIAndAnthropic(t *testing.T) {
 		}
 	})
 
-	// VAL-OPENAI-008: OpenAI base64 vision via e2e mock (valid 10×10 PNG).
+	// OpenAI base64 vision via e2e mock (valid 10x10 PNG).
 	t.Run("openai vision non-stream", func(t *testing.T) {
 		body := `{
 			"model": "claude-sonnet-4",
@@ -217,7 +217,7 @@ func TestE2EMock_OpenAIAndAnthropic(t *testing.T) {
 		}
 	})
 
-	// VAL-ANTHROPIC-009: Anthropic base64 vision via e2e mock (valid 10×10 PNG).
+	// Anthropic base64 vision via e2e mock (valid 10x10 PNG).
 	t.Run("anthropic vision non-stream", func(t *testing.T) {
 		body := `{
 			"model": "claude-sonnet-4",

@@ -1247,7 +1247,7 @@ func TestHTTPError(t *testing.T) {
 	}
 }
 
-// --- VAL-STARTUP-009: refresh and persistence for autodetected sources ---
+// --- Refresh and persistence for autodetected sources ---
 
 // writeSQLiteStaleToken updates an existing kiro-cli SQLite token row with
 // stale (expired) token data so the next GetAccessToken triggers a refresh.

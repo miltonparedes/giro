@@ -74,7 +74,7 @@ func smartKiroMock() http.Handler {
 	})
 }
 
-// --- VAL-CROSS-001 ---------------------------------------------------------
+// --- Health public, models authenticated -----------------------------------
 
 // TestCrossArea_HealthPublicModelsAuthenticated verifies that /health remains
 // public while /v1/models remains authenticated and exposes key user-visible
@@ -160,7 +160,7 @@ func TestCrossArea_HealthPublicModelsAuthenticated(t *testing.T) {
 	})
 }
 
-// --- VAL-CROSS-002 ---------------------------------------------------------
+// --- Both protocols from one credential source -----------------------------
 
 // TestCrossArea_OneSourceBothProtocols verifies that one giro server instance
 // backed by one resolved credential source can serve both a successful OpenAI
@@ -213,7 +213,7 @@ func TestCrossArea_OneSourceBothProtocols(t *testing.T) {
 	})
 }
 
-// --- VAL-CROSS-003 ---------------------------------------------------------
+// --- Negative auth on both protocol surfaces -------------------------------
 
 // TestCrossArea_NegativeAuthBothProtocols verifies that invalid client auth is
 // rejected before any upstream response on both API surfaces, and each surface
@@ -290,7 +290,7 @@ func TestCrossArea_NegativeAuthBothProtocols(t *testing.T) {
 	})
 }
 
-// --- VAL-CROSS-004 ---------------------------------------------------------
+// --- All four modes (OpenAI+Anthropic x stream+non-stream) -----------------
 
 // TestCrossArea_AllFourModes verifies that one giro server instance serves
 // OpenAI non-stream, OpenAI stream, Anthropic non-stream, and Anthropic stream
@@ -395,7 +395,7 @@ func TestCrossArea_AllFourModes(t *testing.T) {
 	})
 }
 
-// --- VAL-CROSS-005 ---------------------------------------------------------
+// --- Advanced: tool use and vision -----------------------------------------
 
 // TestCrossArea_AdvancedMatrix verifies that one giro server instance can
 // execute negative client auth, at least one tool-use flow, and at least one

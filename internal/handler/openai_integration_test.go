@@ -247,9 +247,9 @@ func TestOpenAIHandler_ChatCompletions_FirstTokenRetry_Exhausted(t *testing.T) {
 	}
 }
 
-// --- VAL-OPENAI assertion-targeted tests --------------------------------
+// --- OpenAI assertion-targeted tests ------------------------------------
 
-// VAL-OPENAI-003: A model advertised by /v1/models is the exact model forwarded to Kiro.
+// A model advertised by /v1/models is the exact model forwarded to Kiro.
 func TestOpenAIHandler_AdvertisedModelUsableInCompletions(t *testing.T) {
 	var forwardedModel string
 	kiro := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -324,7 +324,7 @@ func TestOpenAIHandler_AdvertisedModelUsableInCompletions(t *testing.T) {
 	}
 }
 
-// VAL-OPENAI-004: Malformed JSON returns a structured OpenAI-surface error envelope.
+// Malformed JSON returns a structured OpenAI-surface error envelope.
 func TestOpenAIHandler_ChatCompletions_MalformedJSON_ErrorEnvelope(t *testing.T) {
 	h := NewOpenAIHandler(
 		newTestAuthManager(t, "http://127.0.0.1:1", "http://127.0.0.1:1"),
@@ -362,7 +362,7 @@ func TestOpenAIHandler_ChatCompletions_MalformedJSON_ErrorEnvelope(t *testing.T)
 	}
 }
 
-// VAL-OPENAI-005: Non-stream completions return a full OpenAI chat-completion JSON shape.
+// Non-stream completions return a full OpenAI chat-completion JSON shape.
 func TestOpenAIHandler_ChatCompletions_NonStream_FullResponseShape(t *testing.T) {
 	kiro := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -400,7 +400,7 @@ func TestOpenAIHandler_ChatCompletions_NonStream_FullResponseShape(t *testing.T)
 	}
 }
 
-// VAL-OPENAI-006: Streaming completions use OpenAI SSE framing and terminate with [DONE].
+// Streaming completions use OpenAI SSE framing and terminate with [DONE].
 func TestOpenAIHandler_ChatCompletions_Stream_FullFraming(t *testing.T) {
 	kiro := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -463,7 +463,7 @@ func TestOpenAIHandler_ChatCompletions_Stream_FullFraming(t *testing.T) {
 	}
 }
 
-// VAL-OPENAI-007: Non-stream tool calling returns protocol-correct tool_calls.
+// Non-stream tool calling returns protocol-correct tool_calls.
 func TestOpenAIHandler_ChatCompletions_NonStream_ToolCalls(t *testing.T) {
 	kiro := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -547,7 +547,7 @@ func TestOpenAIHandler_ChatCompletions_NonStream_ToolCalls(t *testing.T) {
 	}
 }
 
-// VAL-OPENAI-007: Streaming tool calling returns protocol-correct tool_calls in SSE.
+// Streaming tool calling returns protocol-correct tool_calls in SSE.
 func TestOpenAIHandler_ChatCompletions_Stream_ToolCalls(t *testing.T) {
 	kiro := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -575,7 +575,7 @@ func TestOpenAIHandler_ChatCompletions_Stream_ToolCalls(t *testing.T) {
 	assertStreamToolCallChunk(t, chunks)
 }
 
-// VAL-OPENAI-008: OpenAI base64 vision inputs produce image-grounded responses.
+// OpenAI base64 vision inputs produce image-grounded responses.
 func TestOpenAIHandler_ChatCompletions_NonStream_Vision(t *testing.T) {
 	var receivedImages bool
 	kiro := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -643,7 +643,7 @@ func TestOpenAIHandler_ChatCompletions_NonStream_Vision(t *testing.T) {
 	}
 }
 
-// VAL-OPENAI-008: OpenAI base64 vision inputs work in streaming mode.
+// OpenAI base64 vision inputs work in streaming mode.
 func TestOpenAIHandler_ChatCompletions_Stream_Vision(t *testing.T) {
 	var receivedImages bool
 	kiro := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -702,7 +702,7 @@ func TestOpenAIHandler_ChatCompletions_Stream_Vision(t *testing.T) {
 	}
 }
 
-// VAL-OPENAI-008: OpenAI vision with history images preserves images in Kiro history.
+// OpenAI vision with history images preserves images in Kiro history.
 func TestOpenAIHandler_ChatCompletions_Vision_History(t *testing.T) {
 	var receivedHistoryImages bool
 	kiro := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
