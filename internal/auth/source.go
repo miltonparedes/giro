@@ -62,6 +62,16 @@ func ResolveSource(in ResolveInput) (*ResolvedSource, error) {
 		return src, nil
 	}
 
+	// When the operator explicitly configured file-backed credential sources
+	// but none passed validation, fail closed instead of silently falling
+	// through to autodetection — which could resolve a different identity.
+	if in.KiroCLIDBFile != "" || in.KiroCredsFile != "" {
+		return nil, fmt.Errorf(
+			"explicitly configured credential sources were rejected; refusing to fall through to autodetection (KIRO_CLI_DB_FILE=%q, KIRO_CREDS_FILE=%q)",
+			in.KiroCLIDBFile, in.KiroCredsFile,
+		)
+	}
+
 	if src := resolveAutodetectedSources(in); src != nil {
 		return src, nil
 	}

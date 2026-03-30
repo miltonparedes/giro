@@ -442,9 +442,9 @@ func TestResolveSource_BothAutodetectedBroken_FailClosed(t *testing.T) {
 
 // An invalid explicit source falls back safely to
 // autodetected kiro-ide.
-func TestResolveSource_InvalidExplicitFallsToAutodetectedKiroIDE(t *testing.T) {
+func TestResolveSource_InvalidExplicitBothFailsClosed(t *testing.T) {
 	homeDir := t.TempDir()
-	kiroIDEPath := createTempKiroIDEStore(t, homeDir)
+	createTempKiroIDEStore(t, homeDir)
 
 	in := ResolveInput{
 		KiroCLIDBFile: "/nonexistent/explicit.sqlite3",
@@ -453,15 +453,14 @@ func TestResolveSource_InvalidExplicitFallsToAutodetectedKiroIDE(t *testing.T) {
 	}
 
 	src, err := ResolveSource(in)
-	if err != nil {
-		t.Fatalf("expected fallback to kiro-ide, got error: %v", err)
+	if err == nil {
+		t.Fatal("expected error when both explicit sources are invalid (should not fall through to autodetection)")
 	}
-
-	if src.Kind != SourceKiroIDE {
-		t.Errorf("Kind = %q, want %q", src.Kind, SourceKiroIDE)
+	if src != nil {
+		t.Errorf("expected nil source, got %+v", src)
 	}
-	if src.Path != kiroIDEPath {
-		t.Errorf("Path = %q, want %q", src.Path, kiroIDEPath)
+	if !strings.Contains(err.Error(), "refusing to fall through") {
+		t.Errorf("error should explain refusal to autodetect, got: %s", err.Error())
 	}
 }
 
@@ -571,9 +570,9 @@ func TestResolveSource_RefreshTokenBeatsAutodetected(t *testing.T) {
 
 // --- ResolveSource: fallback from invalid explicit sources ---
 
-func TestResolveSource_InvalidExplicitFallsToAutodetected(t *testing.T) {
+func TestResolveSource_InvalidExplicitFailsClosed(t *testing.T) {
 	homeDir := t.TempDir()
-	storePath := createTempKiroCLIStore(t, homeDir)
+	createTempKiroCLIStore(t, homeDir)
 
 	in := ResolveInput{
 		KiroCLIDBFile: "/nonexistent/explicit.sqlite3",
@@ -581,15 +580,14 @@ func TestResolveSource_InvalidExplicitFallsToAutodetected(t *testing.T) {
 	}
 
 	src, err := ResolveSource(in)
-	if err != nil {
-		t.Fatal(err)
+	if err == nil {
+		t.Fatal("expected error when explicit source is invalid (should not fall through to autodetection)")
 	}
-
-	if src.Kind != SourceKiroCLI {
-		t.Errorf("Kind = %q, want %q (should fall back to autodetected)", src.Kind, SourceKiroCLI)
+	if src != nil {
+		t.Errorf("expected nil source, got %+v", src)
 	}
-	if src.Path != storePath {
-		t.Errorf("Path = %q, want %q", src.Path, storePath)
+	if !strings.Contains(err.Error(), "refusing to fall through") {
+		t.Errorf("error should explain refusal to autodetect, got: %s", err.Error())
 	}
 }
 
@@ -948,15 +946,6 @@ func TestResolveSource_FullPrecedenceWithKiroIDE(t *testing.T) {
 		{
 			name:     "broken-cli-falls-to-kiro-ide",
 			input:    ResolveInput{HomeDir: brokenCLIHome},
-			wantKind: SourceKiroIDE,
-		},
-		{
-			name: "invalid-explicit-falls-to-autodetected-kiro-ide",
-			input: ResolveInput{
-				KiroCLIDBFile: "/nonexistent/bad.sqlite3",
-				KiroCredsFile: "/nonexistent/bad.json",
-				HomeDir:       ideOnlyHome,
-			},
 			wantKind: SourceKiroIDE,
 		},
 	}
@@ -1447,13 +1436,12 @@ func TestValidateJSONCredsLoadable_EmptyFile(t *testing.T) {
 
 // --- Loadability validation: resolver integration tests ---
 
-// Malformed explicit SQLite (file exists but not a valid DB) falls back.
-func TestResolveSource_MalformedExplicitSQLite_FallsToNextSource(t *testing.T) {
+// Malformed explicit SQLite (file exists but not a valid DB) fails closed.
+func TestResolveSource_MalformedExplicitSQLite_FailsClosed(t *testing.T) {
 	dir := t.TempDir()
-	// Create a regular file (not a valid SQLite DB).
 	badSQLite := createTempFile(t, dir, "bad.sqlite3")
 	homeDir := t.TempDir()
-	kiroIDEPath := createTempKiroIDEStore(t, homeDir)
+	createTempKiroIDEStore(t, homeDir)
 
 	in := ResolveInput{
 		KiroCLIDBFile: badSQLite,
@@ -1461,25 +1449,20 @@ func TestResolveSource_MalformedExplicitSQLite_FallsToNextSource(t *testing.T) {
 	}
 
 	src, err := ResolveSource(in)
-	if err != nil {
-		t.Fatalf("expected fallback to kiro-ide, got error: %v", err)
+	if err == nil {
+		t.Fatal("expected error when malformed explicit SQLite is the only explicit source (should not fall through to autodetection)")
 	}
-
-	if src.Kind != SourceKiroIDE {
-		t.Errorf("Kind = %q, want %q (malformed SQLite should be rejected)", src.Kind, SourceKiroIDE)
-	}
-	if src.Path != kiroIDEPath {
-		t.Errorf("Path = %q, want %q", src.Path, kiroIDEPath)
+	if src != nil {
+		t.Errorf("expected nil source, got %+v", src)
 	}
 }
 
-// Malformed explicit JSON (file exists but no refreshToken) falls back.
-func TestResolveSource_MalformedExplicitJSON_FallsToNextSource(t *testing.T) {
+// Malformed explicit JSON (file exists but no refreshToken) fails closed.
+func TestResolveSource_MalformedExplicitJSON_FailsClosed(t *testing.T) {
 	dir := t.TempDir()
-	// Create a JSON file without refreshToken.
 	badJSON := createTempFile(t, dir, "bad.json")
 	homeDir := t.TempDir()
-	kiroIDEPath := createTempKiroIDEStore(t, homeDir)
+	createTempKiroIDEStore(t, homeDir)
 
 	in := ResolveInput{
 		KiroCredsFile: badJSON,
@@ -1487,15 +1470,11 @@ func TestResolveSource_MalformedExplicitJSON_FallsToNextSource(t *testing.T) {
 	}
 
 	src, err := ResolveSource(in)
-	if err != nil {
-		t.Fatalf("expected fallback to kiro-ide, got error: %v", err)
+	if err == nil {
+		t.Fatal("expected error when malformed explicit JSON is the only explicit source (should not fall through to autodetection)")
 	}
-
-	if src.Kind != SourceKiroIDE {
-		t.Errorf("Kind = %q, want %q (malformed JSON should be rejected)", src.Kind, SourceKiroIDE)
-	}
-	if src.Path != kiroIDEPath {
-		t.Errorf("Path = %q, want %q", src.Path, kiroIDEPath)
+	if src != nil {
+		t.Errorf("expected nil source, got %+v", src)
 	}
 }
 
