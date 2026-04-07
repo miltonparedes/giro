@@ -304,35 +304,15 @@ func TestFormatAnthropicSSE_ThinkingAsReasoning(t *testing.T) {
 		block, _ := data["content_block"].(map[string]any)
 		if block["type"] == "thinking" {
 			foundThinkingBlock = true
-			sig, _ := block["signature"].(string)
-			if !strings.HasPrefix(sig, "sig_") {
-				t.Fatalf("expected signature prefix sig_, got %q", sig)
+			if _, ok := block["signature"]; ok {
+				t.Fatal("signature should not be present in content_block_start")
 			}
 		}
 	}
 	if !foundThinkingBlock {
 		t.Fatal("expected thinking content_block_start")
 	}
-
-	// Should have a thinking_delta.
-	var foundThinkingDelta bool
-	for _, c := range chunks {
-		evtType, data := parseAnthropicEvent(c)
-		if evtType != "content_block_delta" {
-			continue
-		}
-		delta, _ := data["delta"].(map[string]any)
-		if delta["type"] == "thinking_delta" {
-			foundThinkingDelta = true
-			thinking, _ := delta["thinking"].(string)
-			if thinking != "deep thought" {
-				t.Fatalf("expected thinking %q, got %q", "deep thought", thinking)
-			}
-		}
-	}
-	if !foundThinkingDelta {
-		t.Fatal("expected thinking_delta")
-	}
+	assertThinkingAndSignatureDeltas(t, chunks, true)
 }
 
 func TestFormatAnthropicSSE_ThinkingRemoved(t *testing.T) {
@@ -518,6 +498,192 @@ func TestCollectAnthropicResponse_ThinkingAsReasoning(t *testing.T) {
 	}
 	if textBlock["text"] != "Answer" {
 		t.Fatalf("expected text %q, got %v", "Answer", textBlock["text"])
+	}
+}
+
+func TestFormatAnthropicSSE_RequestControlledNoThinking(t *testing.T) {
+	events := feedEvents(
+		KiroEvent{Type: "thinking", ThinkingContent: "deep thought"},
+		KiroEvent{Type: "content", Content: "response"},
+	)
+
+	cfg := AnthropicStreamConfig{
+		Model:                   "claude-sonnet-4",
+		RequestControlsThinking: true,
+		ThinkingRequested:       false,
+	}
+	chunks := sseToSlice(FormatAnthropicSSE(events, cfg))
+
+	for _, c := range chunks {
+		if strings.Contains(c, "thinking_delta") || strings.Contains(c, "\"type\":\"thinking\"") {
+			t.Fatalf("unexpected thinking output: %s", c)
+		}
+	}
+}
+
+func TestFormatAnthropicSSE_RequestControlledThinkingVisible(t *testing.T) {
+	events := feedEvents(
+		KiroEvent{Type: "thinking", ThinkingContent: "deep thought"},
+		KiroEvent{Type: "content", Content: "response"},
+	)
+
+	cfg := AnthropicStreamConfig{
+		Model:                   "claude-sonnet-4",
+		RequestControlsThinking: true,
+		ThinkingRequested:       true,
+		ThinkingDisplay:         "summarized",
+	}
+	chunks := sseToSlice(FormatAnthropicSSE(events, cfg))
+
+	var foundThinkingDelta, foundSignatureDelta bool
+	for _, c := range chunks {
+		evtType, data := parseAnthropicEvent(c)
+		if evtType != "content_block_delta" {
+			continue
+		}
+		delta, _ := data["delta"].(map[string]any)
+		switch delta["type"] {
+		case "thinking_delta":
+			foundThinkingDelta = true
+		case "signature_delta":
+			foundSignatureDelta = true
+		}
+	}
+	if !foundThinkingDelta {
+		t.Fatal("expected thinking_delta")
+	}
+	if !foundSignatureDelta {
+		t.Fatal("expected signature_delta")
+	}
+}
+
+func TestFormatAnthropicSSE_RequestControlledThinkingOmitted(t *testing.T) {
+	events := feedEvents(
+		KiroEvent{Type: "thinking", ThinkingContent: "deep thought"},
+		KiroEvent{Type: "content", Content: "response"},
+	)
+
+	cfg := AnthropicStreamConfig{
+		Model:                   "claude-sonnet-4",
+		RequestControlsThinking: true,
+		ThinkingRequested:       true,
+		ThinkingDisplay:         "omitted",
+	}
+	chunks := sseToSlice(FormatAnthropicSSE(events, cfg))
+
+	var foundThinkingStart, foundSignatureDelta bool
+	for _, c := range chunks {
+		evtType, data := parseAnthropicEvent(c)
+		switch evtType {
+		case "content_block_start":
+			block, _ := data["content_block"].(map[string]any)
+			if block["type"] == "thinking" {
+				foundThinkingStart = true
+			}
+		case "content_block_delta":
+			delta, _ := data["delta"].(map[string]any)
+			if delta["type"] == "thinking_delta" {
+				t.Fatal("did not expect thinking_delta in omitted mode")
+			}
+			if delta["type"] == "signature_delta" {
+				foundSignatureDelta = true
+			}
+		}
+	}
+	if !foundThinkingStart {
+		t.Fatal("expected thinking block start")
+	}
+	if !foundSignatureDelta {
+		t.Fatal("expected signature_delta")
+	}
+}
+
+func TestCollectAnthropicResponse_RequestControlledNoThinking(t *testing.T) {
+	events := feedEvents(
+		KiroEvent{Type: "thinking", ThinkingContent: "Let me think..."},
+		KiroEvent{Type: "content", Content: "Answer"},
+	)
+
+	cfg := AnthropicStreamConfig{
+		Model:                   "claude-sonnet-4",
+		RequestControlsThinking: true,
+		ThinkingRequested:       false,
+	}
+	resp, err := CollectAnthropicResponse(events, cfg)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(resp.Content) != 1 {
+		t.Fatalf("expected 1 content block, got %d", len(resp.Content))
+	}
+	if resp.Content[0]["type"] != "text" {
+		t.Fatalf("expected only text block, got %v", resp.Content[0]["type"])
+	}
+}
+
+func TestCollectAnthropicResponse_RequestControlledOmittedThinking(t *testing.T) {
+	events := feedEvents(
+		KiroEvent{Type: "thinking", ThinkingContent: "Let me think..."},
+		KiroEvent{Type: "content", Content: "Answer"},
+	)
+
+	cfg := AnthropicStreamConfig{
+		Model:                   "claude-sonnet-4",
+		RequestControlsThinking: true,
+		ThinkingRequested:       true,
+		ThinkingDisplay:         "omitted",
+	}
+	resp, err := CollectAnthropicResponse(events, cfg)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(resp.Content) != 2 {
+		t.Fatalf("expected 2 content blocks, got %d", len(resp.Content))
+	}
+	if resp.Content[0]["type"] != "redacted_thinking" {
+		t.Fatalf("expected redacted_thinking block, got %v", resp.Content[0]["type"])
+	}
+	if _, ok := resp.Content[0]["data"].(string); !ok {
+		t.Fatal("expected redacted_thinking.data string")
+	}
+}
+
+func assertThinkingAndSignatureDeltas(t *testing.T, chunks []string, wantThinking bool) {
+	t.Helper()
+
+	var foundThinkingDelta, foundSignatureDelta bool
+	for _, c := range chunks {
+		evtType, data := parseAnthropicEvent(c)
+		if evtType != "content_block_delta" {
+			continue
+		}
+		delta, _ := data["delta"].(map[string]any)
+		switch delta["type"] {
+		case "thinking_delta":
+			foundThinkingDelta = true
+			if !wantThinking {
+				t.Fatal("did not expect thinking_delta")
+			}
+			thinking, _ := delta["thinking"].(string)
+			if thinking != "deep thought" {
+				t.Fatalf("expected thinking %q, got %q", "deep thought", thinking)
+			}
+		case "signature_delta":
+			foundSignatureDelta = true
+			sig, _ := delta["signature"].(string)
+			if !strings.HasPrefix(sig, "sig_") {
+				t.Fatalf("expected signature prefix sig_, got %q", sig)
+			}
+		}
+	}
+
+	if wantThinking && !foundThinkingDelta {
+		t.Fatal("expected thinking_delta")
+	}
+	if !foundSignatureDelta {
+		t.Fatal("expected signature_delta")
 	}
 }
 

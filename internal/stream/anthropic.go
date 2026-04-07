@@ -10,8 +10,11 @@ import (
 
 // AnthropicStreamConfig controls how KiroEvents are formatted as Anthropic SSE.
 type AnthropicStreamConfig struct {
-	Model            string
-	ThinkingHandling ThinkingHandling
+	Model                   string
+	ThinkingHandling        ThinkingHandling
+	RequestControlsThinking bool
+	ThinkingRequested       bool
+	ThinkingDisplay         string
 }
 
 // anthropicState tracks content block indices and open/close state during
@@ -25,6 +28,7 @@ type anthropicState struct {
 	textIndex         int
 	toolBlocks        []KiroEvent
 	thinkingSignature string
+	signatureSent     bool
 }
 
 // FormatAnthropicSSE consumes events from the channel and returns a channel of
@@ -77,6 +81,7 @@ func FormatAnthropicSSE(events <-chan KiroEvent, cfg AnthropicStreamConfig) <-ch
 			}
 		}
 
+		closeAnthropicThinkingBlock(ch, st)
 		closeAnthropicTextBlock(ch, st)
 		emitAnthropicToolBlocks(ch, st)
 
@@ -106,14 +111,7 @@ func FormatAnthropicSSE(events <-chan KiroEvent, cfg AnthropicStreamConfig) <-ch
 // emitAnthropicContent handles a content event: closes any open thinking block,
 // starts a text block if needed, and sends a text_delta.
 func emitAnthropicContent(ch chan<- string, st *anthropicState, evt KiroEvent) {
-	if st.thinkingStarted {
-		ch <- formatAnthropicEvent("content_block_stop", map[string]any{
-			"type":  "content_block_stop",
-			"index": st.thinkingIndex,
-		})
-		st.thinkingStarted = false
-		st.blockIndex++
-	}
+	closeAnthropicThinkingBlock(ch, st)
 
 	if !st.textStarted {
 		st.textIndex = st.blockIndex
@@ -142,6 +140,22 @@ func emitAnthropicContent(ch chan<- string, st *anthropicState, evt KiroEvent) {
 
 // emitAnthropicThinking handles a thinking event according to the configured mode.
 func emitAnthropicThinking(ch chan<- string, cfg AnthropicStreamConfig, st *anthropicState, evt KiroEvent) {
+	if cfg.RequestControlsThinking {
+		if !cfg.ThinkingRequested {
+			return
+		}
+
+		closeAnthropicTextBlock(ch, st)
+
+		if cfg.ThinkingDisplay == "omitted" {
+			emitAnthropicOmittedThinkingBlock(ch, st)
+			return
+		}
+
+		emitAnthropicThinkingBlock(ch, st, evt)
+		return
+	}
+
 	switch cfg.ThinkingHandling {
 	case HandlingAsReasoning:
 		emitAnthropicThinkingBlock(ch, st, evt)
@@ -161,12 +175,12 @@ func emitAnthropicThinkingBlock(ch chan<- string, st *anthropicState, evt KiroEv
 			"type":  "content_block_start",
 			"index": st.thinkingIndex,
 			"content_block": map[string]any{
-				"type":      "thinking",
-				"thinking":  "",
-				"signature": st.thinkingSignature,
+				"type":     "thinking",
+				"thinking": "",
 			},
 		})
 		st.thinkingStarted = true
+		st.signatureSent = false
 	}
 
 	if evt.ThinkingContent != "" {
@@ -179,6 +193,49 @@ func emitAnthropicThinkingBlock(ch chan<- string, st *anthropicState, evt KiroEv
 			},
 		})
 	}
+}
+
+func emitAnthropicOmittedThinkingBlock(ch chan<- string, st *anthropicState) {
+	if st.thinkingStarted {
+		return
+	}
+
+	st.thinkingIndex = st.blockIndex
+	ch <- formatAnthropicEvent("content_block_start", map[string]any{
+		"type":  "content_block_start",
+		"index": st.thinkingIndex,
+		"content_block": map[string]any{
+			"type":     "thinking",
+			"thinking": "",
+		},
+	})
+	st.thinkingStarted = true
+	st.signatureSent = false
+}
+
+func closeAnthropicThinkingBlock(ch chan<- string, st *anthropicState) {
+	if !st.thinkingStarted {
+		return
+	}
+
+	if !st.signatureSent {
+		ch <- formatAnthropicEvent("content_block_delta", map[string]any{
+			"type":  "content_block_delta",
+			"index": st.thinkingIndex,
+			"delta": map[string]any{
+				"type":      "signature_delta",
+				"signature": st.thinkingSignature,
+			},
+		})
+		st.signatureSent = true
+	}
+
+	ch <- formatAnthropicEvent("content_block_stop", map[string]any{
+		"type":  "content_block_stop",
+		"index": st.thinkingIndex,
+	})
+	st.thinkingStarted = false
+	st.blockIndex++
 }
 
 // closeAnthropicTextBlock closes the text content block if currently open.
@@ -284,6 +341,56 @@ func collectAnthropicEvents(events <-chan KiroEvent) anthropicCollected {
 	return c
 }
 
+func appendAnthropicThinkingBlocks(
+	blocks []map[string]any,
+	cfg AnthropicStreamConfig,
+	thinkingContent string,
+) []map[string]any {
+	if thinkingContent == "" {
+		return blocks
+	}
+
+	if cfg.RequestControlsThinking {
+		if !cfg.ThinkingRequested {
+			return blocks
+		}
+
+		signature := types.GenerateThinkingSignature()
+		if cfg.ThinkingDisplay == types.AnthropicThinkingDisplayOmitted {
+			return append(blocks, map[string]any{
+				"type": "redacted_thinking",
+				"data": signature,
+			})
+		}
+
+		return append(blocks, map[string]any{
+			"type":      "thinking",
+			"thinking":  thinkingContent,
+			"signature": signature,
+		})
+	}
+
+	if cfg.ThinkingHandling == HandlingAsReasoning {
+		return append(blocks, map[string]any{
+			"type":      "thinking",
+			"thinking":  thinkingContent,
+			"signature": types.GenerateThinkingSignature(),
+		})
+	}
+
+	return blocks
+}
+
+func anthropicTextContent(c anthropicCollected, cfg AnthropicStreamConfig) string {
+	if !cfg.RequestControlsThinking &&
+		c.thinkingContent != "" &&
+		(cfg.ThinkingHandling == HandlingPass || cfg.ThinkingHandling == HandlingStripTags) {
+		return c.thinkingContent + c.content
+	}
+
+	return c.content
+}
+
 // buildAnthropicToolBlock creates a tool_use content block from a KiroEvent.
 func buildAnthropicToolBlock(tc KiroEvent) map[string]any {
 	toolID := tc.ToolUse.ID
@@ -324,19 +431,9 @@ func CollectAnthropicResponse(events <-chan KiroEvent, cfg AnthropicStreamConfig
 	}
 
 	var blocks []map[string]any
+	blocks = appendAnthropicThinkingBlocks(blocks, cfg, c.thinkingContent)
 
-	if c.thinkingContent != "" && cfg.ThinkingHandling == HandlingAsReasoning {
-		blocks = append(blocks, map[string]any{
-			"type":      "thinking",
-			"thinking":  c.thinkingContent,
-			"signature": types.GenerateThinkingSignature(),
-		})
-	}
-
-	textContent := c.content
-	if c.thinkingContent != "" && (cfg.ThinkingHandling == HandlingPass || cfg.ThinkingHandling == HandlingStripTags) {
-		textContent = c.thinkingContent + c.content
-	}
+	textContent := anthropicTextContent(c, cfg)
 	if textContent != "" {
 		blocks = append(blocks, map[string]any{
 			"type": "text",

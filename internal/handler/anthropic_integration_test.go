@@ -594,6 +594,167 @@ func TestAnthropicHandler_Messages_Stream_ToolUse(t *testing.T) {
 	assertAnthropicStreamToolUseLifecycle(t, events, "get_weather", "London")
 }
 
+func TestAnthropicHandler_Messages_RequestThinkingVisible(t *testing.T) {
+	kiro := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = fmt.Fprint(w, `{"content":"<thinking>deep thought</thinking>hello"}`)
+	}))
+	defer kiro.Close()
+
+	cfg := testHandlerConfig()
+	cfg.FakeReasoning = true
+	cfg.FakeReasoningHandling = "as_reasoning_content"
+
+	h := NewAnthropicHandler(
+		newTestAuthManager(t, kiro.URL, kiro.URL),
+		newTestResolver("claude-sonnet-4"),
+		newTestHTTPClient(),
+		cfg,
+	)
+
+	body := `{"model":"claude-sonnet-4","max_tokens":64,"messages":[{"role":"user","content":"hello"}],"stream":true,"thinking":{"type":"adaptive"}}`
+	req := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(body))
+	rr := httptest.NewRecorder()
+	h.Messages(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", rr.Code, http.StatusOK)
+	}
+
+	events := parseAnthropicSSEEvents(t, rr.Body.String())
+	var foundThinkingDelta, foundSignatureDelta bool
+	for _, evt := range events {
+		if evt.eventType != "content_block_delta" {
+			continue
+		}
+		delta, _ := evt.data["delta"].(map[string]any)
+		switch delta["type"] {
+		case "thinking_delta":
+			foundThinkingDelta = true
+		case "signature_delta":
+			foundSignatureDelta = true
+		}
+	}
+	if !foundThinkingDelta {
+		t.Fatal("expected thinking_delta")
+	}
+	if !foundSignatureDelta {
+		t.Fatal("expected signature_delta")
+	}
+}
+
+func TestAnthropicHandler_Messages_RequestThinkingOmitted(t *testing.T) {
+	kiro := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = fmt.Fprint(w, `{"content":"<thinking>deep thought</thinking>hello"}`)
+	}))
+	defer kiro.Close()
+
+	cfg := testHandlerConfig()
+	cfg.FakeReasoning = true
+	cfg.FakeReasoningHandling = "as_reasoning_content"
+
+	h := NewAnthropicHandler(
+		newTestAuthManager(t, kiro.URL, kiro.URL),
+		newTestResolver("claude-sonnet-4"),
+		newTestHTTPClient(),
+		cfg,
+	)
+
+	body := `{"model":"claude-sonnet-4","max_tokens":64,"messages":[{"role":"user","content":"hello"}],"stream":true,"thinking":{"type":"adaptive","display":"omitted"}}`
+	req := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(body))
+	rr := httptest.NewRecorder()
+	h.Messages(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", rr.Code, http.StatusOK)
+	}
+
+	events := parseAnthropicSSEEvents(t, rr.Body.String())
+	assertAnthropicOmittedThinkingLifecycle(t, events)
+}
+
+func TestAnthropicHandler_Messages_RequestThinkingNotRequested(t *testing.T) {
+	kiro := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = fmt.Fprint(w, `{"content":"<thinking>deep thought</thinking>hello"}`)
+	}))
+	defer kiro.Close()
+
+	cfg := testHandlerConfig()
+	cfg.FakeReasoning = true
+	cfg.FakeReasoningHandling = "as_reasoning_content"
+
+	h := NewAnthropicHandler(
+		newTestAuthManager(t, kiro.URL, kiro.URL),
+		newTestResolver("claude-sonnet-4"),
+		newTestHTTPClient(),
+		cfg,
+	)
+
+	body := `{"model":"claude-sonnet-4","max_tokens":64,"messages":[{"role":"user","content":"hello"}],"stream":false}`
+	req := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(body))
+	rr := httptest.NewRecorder()
+	h.Messages(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body=%s", rr.Code, http.StatusOK, rr.Body.String())
+	}
+
+	var resp map[string]any
+	if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	content, _ := resp["content"].([]any)
+	for _, block := range content {
+		b, _ := block.(map[string]any)
+		if b["type"] == "thinking" || b["type"] == "redacted_thinking" {
+			t.Fatalf("unexpected thinking surface block: %v", b["type"])
+		}
+	}
+}
+
+func TestAnthropicHandler_Messages_RequestThinkingOmittedNonStream(t *testing.T) {
+	kiro := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = fmt.Fprint(w, `{"content":"<thinking>deep thought</thinking>hello"}`)
+	}))
+	defer kiro.Close()
+
+	cfg := testHandlerConfig()
+	cfg.FakeReasoning = true
+	cfg.FakeReasoningHandling = "as_reasoning_content"
+
+	h := NewAnthropicHandler(
+		newTestAuthManager(t, kiro.URL, kiro.URL),
+		newTestResolver("claude-sonnet-4"),
+		newTestHTTPClient(),
+		cfg,
+	)
+
+	body := `{"model":"claude-sonnet-4","max_tokens":64,"messages":[{"role":"user","content":"hello"}],"stream":false,"thinking":{"type":"adaptive","display":"omitted"}}`
+	req := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(body))
+	rr := httptest.NewRecorder()
+	h.Messages(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body=%s", rr.Code, http.StatusOK, rr.Body.String())
+	}
+
+	var resp map[string]any
+	if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	content, _ := resp["content"].([]any)
+	if len(content) < 2 {
+		t.Fatalf("expected at least 2 blocks, got %d", len(content))
+	}
+	first, _ := content[0].(map[string]any)
+	if first["type"] != "redacted_thinking" {
+		t.Fatalf("first block type = %v, want redacted_thinking", first["type"])
+	}
+}
+
 // --- Anthropic assertion helpers ---
 
 // anthropicSSEEvent is a parsed Anthropic SSE event.
@@ -715,6 +876,36 @@ func assertAnthropicSSELifecycle(t *testing.T, events []anthropicSSEEvent) {
 	}
 	if !foundMessageDelta {
 		t.Fatal("no message_delta event found in SSE stream")
+	}
+}
+
+func assertAnthropicOmittedThinkingLifecycle(t *testing.T, events []anthropicSSEEvent) {
+	t.Helper()
+
+	var foundThinkingStart, foundSignatureDelta bool
+	for _, evt := range events {
+		switch evt.eventType {
+		case "content_block_start":
+			block, _ := evt.data["content_block"].(map[string]any)
+			if block["type"] == "thinking" {
+				foundThinkingStart = true
+			}
+		case "content_block_delta":
+			delta, _ := evt.data["delta"].(map[string]any)
+			if delta["type"] == "thinking_delta" {
+				t.Fatal("did not expect thinking_delta in omitted mode")
+			}
+			if delta["type"] == "signature_delta" {
+				foundSignatureDelta = true
+			}
+		}
+	}
+
+	if !foundThinkingStart {
+		t.Fatal("expected thinking block start")
+	}
+	if !foundSignatureDelta {
+		t.Fatal("expected signature_delta")
 	}
 }
 

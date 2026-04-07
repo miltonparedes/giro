@@ -2,6 +2,7 @@ package convert
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/miltonparedes/giro/internal/types"
@@ -360,6 +361,103 @@ func TestAnthropic_FullConversion(t *testing.T) {
 	histArr := hist.([]map[string]any)
 	if len(histArr) < 2 {
 		t.Fatalf("expected at least 2 history entries, got %d", len(histArr))
+	}
+}
+
+func TestAnthropicToCorePayload_ThinkingDisabledByDefault(t *testing.T) {
+	req := &types.AnthropicMessagesRequest{
+		Model:     "claude-sonnet-4",
+		MaxTokens: 64,
+		Messages: []types.AnthropicMessage{
+			{Role: "user", Content: json.RawMessage(`"Hello"`)},
+		},
+	}
+
+	cfg := Config{
+		FakeReasoning:            true,
+		FakeReasoningMaxTokens:   4000,
+		ToolDescriptionMaxLength: 10000,
+	}
+
+	result, err := AnthropicToCorePayload(req, "claude-sonnet-4", "conv-1", "", cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	convState := result.Payload["conversationState"].(map[string]any)
+	cm := convState["currentMessage"].(map[string]any)
+	ui := cm["userInputMessage"].(map[string]any)
+	content, _ := ui["content"].(string)
+	if strings.Contains(content, "<thinking_mode>") {
+		t.Fatalf("unexpected thinking tags in content: %q", content)
+	}
+}
+
+func TestAnthropicToCorePayload_ThinkingEnabledUsesBudgetTokens(t *testing.T) {
+	budget := 321
+	req := &types.AnthropicMessagesRequest{
+		Model:     "claude-sonnet-4",
+		MaxTokens: 64,
+		Thinking: &types.AnthropicThinking{
+			Type:         "enabled",
+			BudgetTokens: &budget,
+		},
+		Messages: []types.AnthropicMessage{
+			{Role: "user", Content: json.RawMessage(`"Hello"`)},
+		},
+	}
+
+	cfg := Config{
+		FakeReasoning:            true,
+		FakeReasoningMaxTokens:   4000,
+		ToolDescriptionMaxLength: 10000,
+	}
+
+	result, err := AnthropicToCorePayload(req, "claude-sonnet-4", "conv-1", "", cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	convState := result.Payload["conversationState"].(map[string]any)
+	cm := convState["currentMessage"].(map[string]any)
+	ui := cm["userInputMessage"].(map[string]any)
+	content, _ := ui["content"].(string)
+	if !strings.Contains(content, "<thinking_mode>enabled</thinking_mode>") {
+		t.Fatalf("expected thinking tags in content: %q", content)
+	}
+	if !strings.Contains(content, "<max_thinking_length>321</max_thinking_length>") {
+		t.Fatalf("expected budget token override in content: %q", content)
+	}
+}
+
+func TestAnthropicToCorePayload_OutputConfigEffortForwarded(t *testing.T) {
+	req := &types.AnthropicMessagesRequest{
+		Model:     "claude-sonnet-4",
+		MaxTokens: 64,
+		OutputConfig: &types.AnthropicOutput{
+			Effort: "high",
+		},
+		Messages: []types.AnthropicMessage{
+			{Role: "user", Content: json.RawMessage(`"Hello"`)},
+		},
+	}
+
+	cfg := Config{
+		FakeReasoning:            false,
+		FakeReasoningMaxTokens:   4000,
+		ToolDescriptionMaxLength: 10000,
+	}
+
+	result, err := AnthropicToCorePayload(req, "claude-sonnet-4", "conv-1", "", cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	convState := result.Payload["conversationState"].(map[string]any)
+	cm := convState["currentMessage"].(map[string]any)
+	ui := cm["userInputMessage"].(map[string]any)
+	if ui["effort"] != "high" {
+		t.Fatalf("effort = %v, want high", ui["effort"])
 	}
 }
 

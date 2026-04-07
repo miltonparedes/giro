@@ -26,12 +26,26 @@ func AnthropicToCorePayload(
 	system := AnthropicSystemPrompt(req.System)
 	unified := AnthropicMessages(req.Messages)
 	tools := AnthropicTools(req.Tools)
+	fakeReasoning := false
+	fakeReasoningMaxTokens := cfg.FakeReasoningMaxTokens
+	outputEffort := ""
+
+	if req.Thinking != nil {
+		fakeReasoning = req.Thinking.Enabled()
+		if fakeReasoning {
+			fakeReasoningMaxTokens = req.Thinking.MaxTokens(fakeReasoningMaxTokens)
+		}
+	}
+	if req.OutputConfig != nil {
+		outputEffort = req.OutputConfig.Effort
+	}
 
 	return BuildKiroPayload(
 		system, unified, tools,
 		modelID, conversationID, profileARN,
-		cfg.FakeReasoning, cfg.FakeReasoningMaxTokens,
+		fakeReasoning, fakeReasoningMaxTokens,
 		cfg.TruncationRecovery, cfg.ToolDescriptionMaxLength,
+		outputEffort,
 	)
 }
 

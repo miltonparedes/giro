@@ -76,15 +76,23 @@ func (h *AnthropicHandler) Messages(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	events, err := h.doKiroRequest(r.Context(), payloadResult.Payload)
+	fakeReasoning := h.cfg.FakeReasoning || (req.Thinking != nil && req.Thinking.Enabled())
+
+	events, err := h.doKiroRequest(r.Context(), payloadResult.Payload, fakeReasoning)
 	if err != nil {
 		writeJSONError(w, kiroErrorStatus(err), kiro.FormatErrorForAnthropic(err.Error()))
 		return
 	}
 
 	anthropicCfg := stream.AnthropicStreamConfig{
-		Model:            resolution.ResolvedModel,
-		ThinkingHandling: stream.ThinkingHandling(h.cfg.FakeReasoningHandling),
+		Model:                   resolution.ResolvedModel,
+		ThinkingHandling:        stream.ThinkingHandling(h.cfg.FakeReasoningHandling),
+		RequestControlsThinking: true,
+		ThinkingRequested:       req.Thinking != nil && req.Thinking.Enabled(),
+		ThinkingDisplay:         "summarized",
+	}
+	if req.Thinking != nil {
+		anthropicCfg.ThinkingDisplay = req.Thinking.DisplayMode()
 	}
 
 	if req.Stream {
@@ -127,9 +135,13 @@ func (h *AnthropicHandler) collectAnthropicResponse(w http.ResponseWriter, event
 // doKiroRequest sends a request to the Kiro API with first-token retry logic.
 // On success it returns the event channel and nil error. The response body is
 // owned by ParseKiroStream, which closes it when the stream is fully consumed.
-func (h *AnthropicHandler) doKiroRequest(ctx context.Context, payload map[string]any) (<-chan stream.KiroEvent, error) {
+func (h *AnthropicHandler) doKiroRequest(
+	ctx context.Context,
+	payload map[string]any,
+	fakeReasoning bool,
+) (<-chan stream.KiroEvent, error) {
 	streamCfg := stream.Config{
-		FakeReasoning:         h.cfg.FakeReasoning,
+		FakeReasoning:         fakeReasoning,
 		FakeReasoningHandling: stream.ThinkingHandling(h.cfg.FakeReasoningHandling),
 		InitialBufferSize:     h.cfg.FakeReasoningInitialBufferSize,
 		FirstTokenTimeout:     time.Duration(h.cfg.FirstTokenTimeout * float64(time.Second)),
