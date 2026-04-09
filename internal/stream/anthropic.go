@@ -10,11 +10,9 @@ import (
 
 // AnthropicStreamConfig controls how KiroEvents are formatted as Anthropic SSE.
 type AnthropicStreamConfig struct {
-	Model                   string
-	ThinkingHandling        ThinkingHandling
-	RequestControlsThinking bool
-	ThinkingRequested       bool
-	ThinkingDisplay         string
+	Model             string
+	ThinkingRequested bool
+	ThinkingDisplay   string
 }
 
 // anthropicState tracks content block indices and open/close state during
@@ -138,33 +136,21 @@ func emitAnthropicContent(ch chan<- string, st *anthropicState, evt KiroEvent) {
 	}
 }
 
-// emitAnthropicThinking handles a thinking event according to the configured mode.
+// emitAnthropicThinking handles a thinking event: only surfaces thinking when
+// explicitly requested by the client.
 func emitAnthropicThinking(ch chan<- string, cfg AnthropicStreamConfig, st *anthropicState, evt KiroEvent) {
-	if cfg.RequestControlsThinking {
-		if !cfg.ThinkingRequested {
-			return
-		}
-
-		closeAnthropicTextBlock(ch, st)
-
-		if cfg.ThinkingDisplay == "omitted" {
-			emitAnthropicOmittedThinkingBlock(ch, st)
-			return
-		}
-
-		emitAnthropicThinkingBlock(ch, st, evt)
+	if !cfg.ThinkingRequested {
 		return
 	}
 
-	switch cfg.ThinkingHandling {
-	case HandlingAsReasoning:
-		emitAnthropicThinkingBlock(ch, st, evt)
-	case HandlingPass, HandlingStripTags:
-		// Already processed by ThinkingParser — emit as regular text content.
-		emitAnthropicContent(ch, st, KiroEvent{Type: EventContent, Content: evt.ThinkingContent})
-	case HandlingRemove:
-		// Discard.
+	closeAnthropicTextBlock(ch, st)
+
+	if cfg.ThinkingDisplay == "omitted" {
+		emitAnthropicOmittedThinkingBlock(ch, st)
+		return
 	}
+
+	emitAnthropicThinkingBlock(ch, st, evt)
 }
 
 // emitAnthropicThinkingBlock sends native Anthropic thinking content blocks.
@@ -346,48 +332,26 @@ func appendAnthropicThinkingBlocks(
 	cfg AnthropicStreamConfig,
 	thinkingContent string,
 ) []map[string]any {
-	if thinkingContent == "" {
+	if thinkingContent == "" || !cfg.ThinkingRequested {
 		return blocks
 	}
 
-	if cfg.RequestControlsThinking {
-		if !cfg.ThinkingRequested {
-			return blocks
-		}
-
-		signature := types.GenerateThinkingSignature()
-		if cfg.ThinkingDisplay == types.AnthropicThinkingDisplayOmitted {
-			return append(blocks, map[string]any{
-				"type": "redacted_thinking",
-				"data": signature,
-			})
-		}
-
+	signature := types.GenerateThinkingSignature()
+	if cfg.ThinkingDisplay == types.AnthropicThinkingDisplayOmitted {
 		return append(blocks, map[string]any{
-			"type":      "thinking",
-			"thinking":  thinkingContent,
-			"signature": signature,
+			"type": "redacted_thinking",
+			"data": signature,
 		})
 	}
 
-	if cfg.ThinkingHandling == HandlingAsReasoning {
-		return append(blocks, map[string]any{
-			"type":      "thinking",
-			"thinking":  thinkingContent,
-			"signature": types.GenerateThinkingSignature(),
-		})
-	}
-
-	return blocks
+	return append(blocks, map[string]any{
+		"type":      "thinking",
+		"thinking":  thinkingContent,
+		"signature": signature,
+	})
 }
 
-func anthropicTextContent(c anthropicCollected, cfg AnthropicStreamConfig) string {
-	if !cfg.RequestControlsThinking &&
-		c.thinkingContent != "" &&
-		(cfg.ThinkingHandling == HandlingPass || cfg.ThinkingHandling == HandlingStripTags) {
-		return c.thinkingContent + c.content
-	}
-
+func anthropicTextContent(c anthropicCollected) string {
 	return c.content
 }
 
@@ -433,7 +397,7 @@ func CollectAnthropicResponse(events <-chan KiroEvent, cfg AnthropicStreamConfig
 	var blocks []map[string]any
 	blocks = appendAnthropicThinkingBlocks(blocks, cfg, c.thinkingContent)
 
-	textContent := anthropicTextContent(c, cfg)
+	textContent := anthropicTextContent(c)
 	if textContent != "" {
 		blocks = append(blocks, map[string]any{
 			"type": "text",

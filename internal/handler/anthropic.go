@@ -64,8 +64,7 @@ func (h *AnthropicHandler) Messages(w http.ResponseWriter, r *http.Request) {
 		resolvedModel = resolution.InternalID
 	}
 
-	convCfg := convert.Config{
-		FakeReasoning:            h.cfg.FakeReasoning,
+	convCfg := convert.AnthropicConvertConfig{
 		FakeReasoningMaxTokens:   h.cfg.FakeReasoningMaxTokens,
 		TruncationRecovery:       h.cfg.TruncationRecovery,
 		ToolDescriptionMaxLength: h.cfg.ToolDescriptionMaxLength,
@@ -76,7 +75,7 @@ func (h *AnthropicHandler) Messages(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	fakeReasoning := h.cfg.FakeReasoning || (req.Thinking != nil && req.Thinking.Enabled())
+	fakeReasoning := req.Thinking != nil && req.Thinking.Enabled()
 
 	events, err := h.doKiroRequest(r.Context(), payloadResult.Payload, fakeReasoning)
 	if err != nil {
@@ -85,11 +84,9 @@ func (h *AnthropicHandler) Messages(w http.ResponseWriter, r *http.Request) {
 	}
 
 	anthropicCfg := stream.AnthropicStreamConfig{
-		Model:                   resolution.ResolvedModel,
-		ThinkingHandling:        stream.ThinkingHandling(h.cfg.FakeReasoningHandling),
-		RequestControlsThinking: true,
-		ThinkingRequested:       req.Thinking != nil && req.Thinking.Enabled(),
-		ThinkingDisplay:         "summarized",
+		Model:             resolution.ResolvedModel,
+		ThinkingRequested: req.Thinking != nil && req.Thinking.Enabled(),
+		ThinkingDisplay:   "summarized",
 	}
 	if req.Thinking != nil {
 		anthropicCfg.ThinkingDisplay = req.Thinking.DisplayMode()

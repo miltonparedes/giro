@@ -333,8 +333,7 @@ func TestAnthropic_FullConversion(t *testing.T) {
 		},
 	}
 
-	cfg := Config{
-		FakeReasoning:            false,
+	cfg := AnthropicConvertConfig{
 		ToolDescriptionMaxLength: 10000,
 	}
 
@@ -373,8 +372,7 @@ func TestAnthropicToCorePayload_ThinkingDisabledByDefault(t *testing.T) {
 		},
 	}
 
-	cfg := Config{
-		FakeReasoning:            true,
+	cfg := AnthropicConvertConfig{
 		FakeReasoningMaxTokens:   4000,
 		ToolDescriptionMaxLength: 10000,
 	}
@@ -407,8 +405,7 @@ func TestAnthropicToCorePayload_ThinkingEnabledUsesBudgetTokens(t *testing.T) {
 		},
 	}
 
-	cfg := Config{
-		FakeReasoning:            true,
+	cfg := AnthropicConvertConfig{
 		FakeReasoningMaxTokens:   4000,
 		ToolDescriptionMaxLength: 10000,
 	}
@@ -442,8 +439,7 @@ func TestAnthropicToCorePayload_OutputConfigEffortForwarded(t *testing.T) {
 		},
 	}
 
-	cfg := Config{
-		FakeReasoning:            false,
+	cfg := AnthropicConvertConfig{
 		FakeReasoningMaxTokens:   4000,
 		ToolDescriptionMaxLength: 10000,
 	}

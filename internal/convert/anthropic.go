@@ -17,11 +17,18 @@ const (
 	contentEmptyResult = "(empty result)"
 )
 
+// AnthropicConvertConfig holds configuration specific to the Anthropic conversion path.
+type AnthropicConvertConfig struct {
+	FakeReasoningMaxTokens   int
+	TruncationRecovery       bool
+	ToolDescriptionMaxLength int
+}
+
 // AnthropicToCorePayload converts an Anthropic MessagesRequest to a Kiro API payload.
 func AnthropicToCorePayload(
 	req *types.AnthropicMessagesRequest,
 	modelID, conversationID, profileARN string,
-	cfg Config,
+	cfg AnthropicConvertConfig,
 ) (*KiroPayloadResult, error) {
 	system := AnthropicSystemPrompt(req.System)
 	unified := AnthropicMessages(req.Messages)
