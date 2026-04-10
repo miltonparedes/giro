@@ -137,9 +137,14 @@ func (h *AnthropicHandler) doKiroRequest(
 	payload map[string]any,
 	fakeReasoning bool,
 ) (<-chan stream.KiroEvent, error) {
+	reasoningHandling := stream.ThinkingHandling(h.cfg.FakeReasoningHandling)
+	if fakeReasoning {
+		reasoningHandling = stream.HandlingAsReasoning
+	}
+
 	streamCfg := stream.Config{
 		FakeReasoning:         fakeReasoning,
-		FakeReasoningHandling: stream.ThinkingHandling(h.cfg.FakeReasoningHandling),
+		FakeReasoningHandling: reasoningHandling,
 		InitialBufferSize:     h.cfg.FakeReasoningInitialBufferSize,
 		FirstTokenTimeout:     time.Duration(h.cfg.FirstTokenTimeout * float64(time.Second)),
 	}
