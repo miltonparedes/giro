@@ -260,6 +260,20 @@ Clients send this as `Authorization: Bearer <key>` (OpenAI) or `x-api-key: <key>
 | `TRUNCATION_RECOVERY` | `true` | Retry on truncated responses |
 | `DEBUG_MODE` | `off` | `off` · `errors` · `all` |
 
+## Limitations
+
+### Extended thinking / reasoning
+
+giro does **not** provide native extended thinking. The Kiro API does not expose a dedicated reasoning mode, so when `FAKE_REASONING=true` (the default) giro simulates it via prompt engineering: it injects XML tags asking the model to wrap its thought process in `<thinking>` blocks, then parses them out of the response.
+
+This means:
+
+- The `thinking` field in Anthropic requests is accepted for compatibility but triggers the same prompt-based simulation.
+- Quality of the "thinking" output depends entirely on how the model reacts to the injected instructions — it is **not** equivalent to Anthropic's native extended thinking or reasoning budgets.
+- For tasks where deep reasoning matters, consider using the [Anthropic API](https://docs.anthropic.com/) or [AWS Bedrock](https://aws.amazon.com/bedrock/) directly, which support true extended thinking with dedicated token budgets.
+
+Use giro's fake reasoning for convenience and broad compatibility with clients that expect a `thinking` field, but be aware it is a best-effort approximation.
+
 ## Building from source
 
 **Requires:** [Go](https://go.dev/) 1.24+ · [just](https://github.com/casey/just) · [gofumpt](https://github.com/mvdan/gofumpt) · [golangci-lint](https://golangci-lint.run/) v2

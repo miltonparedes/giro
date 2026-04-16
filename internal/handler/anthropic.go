@@ -64,8 +64,7 @@ func (h *AnthropicHandler) Messages(w http.ResponseWriter, r *http.Request) {
 		resolvedModel = resolution.InternalID
 	}
 
-	convCfg := convert.Config{
-		FakeReasoning:            h.cfg.FakeReasoning,
+	convCfg := convert.AnthropicConvertConfig{
 		FakeReasoningMaxTokens:   h.cfg.FakeReasoningMaxTokens,
 		TruncationRecovery:       h.cfg.TruncationRecovery,
 		ToolDescriptionMaxLength: h.cfg.ToolDescriptionMaxLength,
@@ -76,15 +75,21 @@ func (h *AnthropicHandler) Messages(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	events, err := h.doKiroRequest(r.Context(), payloadResult.Payload)
+	fakeReasoning := req.Thinking != nil && req.Thinking.Enabled()
+
+	events, err := h.doKiroRequest(r.Context(), payloadResult.Payload, fakeReasoning)
 	if err != nil {
 		writeJSONError(w, kiroErrorStatus(err), kiro.FormatErrorForAnthropic(err.Error()))
 		return
 	}
 
 	anthropicCfg := stream.AnthropicStreamConfig{
-		Model:            resolution.ResolvedModel,
-		ThinkingHandling: stream.ThinkingHandling(h.cfg.FakeReasoningHandling),
+		Model:             resolution.ResolvedModel,
+		ThinkingRequested: req.Thinking != nil && req.Thinking.Enabled(),
+		ThinkingDisplay:   "summarized",
+	}
+	if req.Thinking != nil {
+		anthropicCfg.ThinkingDisplay = req.Thinking.DisplayMode()
 	}
 
 	if req.Stream {
@@ -127,10 +132,19 @@ func (h *AnthropicHandler) collectAnthropicResponse(w http.ResponseWriter, event
 // doKiroRequest sends a request to the Kiro API with first-token retry logic.
 // On success it returns the event channel and nil error. The response body is
 // owned by ParseKiroStream, which closes it when the stream is fully consumed.
-func (h *AnthropicHandler) doKiroRequest(ctx context.Context, payload map[string]any) (<-chan stream.KiroEvent, error) {
+func (h *AnthropicHandler) doKiroRequest(
+	ctx context.Context,
+	payload map[string]any,
+	fakeReasoning bool,
+) (<-chan stream.KiroEvent, error) {
+	reasoningHandling := stream.ThinkingHandling(h.cfg.FakeReasoningHandling)
+	if fakeReasoning {
+		reasoningHandling = stream.HandlingAsReasoning
+	}
+
 	streamCfg := stream.Config{
-		FakeReasoning:         h.cfg.FakeReasoning,
-		FakeReasoningHandling: stream.ThinkingHandling(h.cfg.FakeReasoningHandling),
+		FakeReasoning:         fakeReasoning,
+		FakeReasoningHandling: reasoningHandling,
 		InitialBufferSize:     h.cfg.FakeReasoningInitialBufferSize,
 		FirstTokenTimeout:     time.Duration(h.cfg.FirstTokenTimeout * float64(time.Second)),
 	}

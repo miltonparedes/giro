@@ -14,6 +14,7 @@ type Config struct {
 	FakeReasoningMaxTokens   int
 	TruncationRecovery       bool
 	ToolDescriptionMaxLength int
+	OutputEffort             string
 }
 
 // OpenAIToCorePayload converts an OpenAI ChatCompletionRequest to a Kiro API payload.
@@ -30,6 +31,7 @@ func OpenAIToCorePayload(
 		modelID, conversationID, profileARN,
 		cfg.FakeReasoning, cfg.FakeReasoningMaxTokens,
 		cfg.TruncationRecovery, cfg.ToolDescriptionMaxLength,
+		cfg.OutputEffort,
 	)
 }
 

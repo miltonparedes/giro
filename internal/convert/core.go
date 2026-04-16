@@ -76,7 +76,13 @@ func BuildKiroPayload(
 	fakeReasoningMaxTokens int,
 	truncationRecovery bool,
 	toolDescriptionMaxLength int,
+	outputEffort ...string,
 ) (*KiroPayloadResult, error) {
+	effort := ""
+	if len(outputEffort) > 0 {
+		effort = outputEffort[0]
+	}
+
 	processedTools, toolDoc := ProcessToolsWithLongDescriptions(tools, toolDescriptionMaxLength)
 
 	if err := ValidateToolNames(processedTools); err != nil {
@@ -133,7 +139,7 @@ func BuildKiroPayload(
 		current.Content = InjectThinkingTags(current.Content, fakeReasoningMaxTokens)
 	}
 
-	payload := assemblePayload(history, current, processedTools, modelID, conversationID, profileARN)
+	payload := assemblePayload(history, current, processedTools, modelID, conversationID, profileARN, effort)
 
 	return &KiroPayloadResult{
 		Payload:           payload,
@@ -497,11 +503,16 @@ func assemblePayload(
 	current UnifiedMessage,
 	tools []UnifiedTool,
 	modelID, conversationID, profileARN string,
+	outputEffort string,
 ) map[string]any {
 	userInput := map[string]any{
 		"content": current.Content,
 		"modelId": modelID,
 		"origin":  "AI_EDITOR",
+	}
+
+	if outputEffort != "" {
+		userInput["effort"] = outputEffort
 	}
 
 	if len(current.Images) > 0 {
